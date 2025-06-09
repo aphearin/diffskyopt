@@ -6,6 +6,8 @@ import jax.numpy as jnp
 from dsps.data_loaders import retrieve_fake_fsps_data
 from dsps.data_loaders.defaults import TransmissionCurve
 from diffsky.experimental import lc_phot_kern
+from diffsky.mass_functions.fitting_utils.calibrations \
+    import hacc_core_shmf_params as hcshmf
 from dsps.cosmology.defaults import DEFAULT_COSMOLOGY
 
 
@@ -20,10 +22,13 @@ def generate_lc_data_kern(
     tcurves,
     z_phot_table,
     logmp_cutoff=0.0,
+    hacc_core_params=True,
 ):
     mclh_args = (ran_key, lgmp_min, z_min, z_max, sky_area_degsq)
+
+    kw = dict(hmf_params=hcshmf.HMF_PARAMS) if hacc_core_params else {}
     lc_halopop = lc_phot_kern.mclh.mc_lightcone_host_halo_diffmah(
-        *mclh_args, logmp_cutoff=logmp_cutoff)
+        *mclh_args, logmp_cutoff=logmp_cutoff, **kw)
 
     t0 = lc_phot_kern.flat_wcdm.age_at_z0(*cosmo_params)
     t_table = jnp.linspace(lc_phot_kern.T_TABLE_MIN,
@@ -50,7 +55,8 @@ def generate_lc_data_kern(
 
 
 def generate_lc_data(z_min, z_max, lgmp_min, sky_area_degsq,
-                     ran_key=None, n_z_phot_table=15, logmp_cutoff=0.0):
+                     ran_key=None, n_z_phot_table=15, logmp_cutoff=0.0,
+                     hacc_core_params=True):
     if ran_key is None:
         ran_key = jax.random.key(0)
 
@@ -74,7 +80,8 @@ def generate_lc_data(z_min, z_max, lgmp_min, sky_area_degsq,
         DEFAULT_COSMOLOGY,
         tcurves,
         z_phot_table,
-        logmp_cutoff=logmp_cutoff
+        logmp_cutoff=logmp_cutoff,
+        hacc_core_params=hacc_core_params,
     )
     return lc_data
 
