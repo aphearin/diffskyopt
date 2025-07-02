@@ -56,9 +56,7 @@ class CosmosFit:
         cat = load_cosmos20()
 
         # Mask out NaNs
-        nan_msk_keys = ("photoz", "HSC_g_MAG", "HSC_r_MAG", "HSC_i_MAG",
-                        "HSC_z_MAG", "HSC_y_MAG", "UVISTA_Y_MAG",
-                        "UVISTA_J_MAG", "UVISTA_H_MAG", "UVISTA_Ks_MAG")
+        nan_msk_keys = ("photoz", *FILTER_NAMES)
         msk_no_nan = np.ones(len(cat), dtype=bool)
         for key in nan_msk_keys:
             msk_no_nan &= ~np.isnan(np.array(cat[key]))

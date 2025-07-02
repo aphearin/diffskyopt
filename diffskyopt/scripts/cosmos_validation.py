@@ -11,7 +11,6 @@ import jax
 from astropy.cosmology import Planck15
 from astropy import units
 
-# diffsky@smhm_diagnostic branch
 from diffsky.experimental.diagnostics import check_smhm
 from diffsky.param_utils import diffsky_param_wrapper as dpw
 
