@@ -19,9 +19,9 @@ ran_keys = jax.random.split(jax.random.key(1), 4)
 keys = jax.random.split(ran_keys[3], 100)
 
 TARGET_LABELS = [
-    "$\\rm m_i$", "$\\rm g - r$", "$\\rm r - i$", "$\\rm i - z$",
-    "$\\rm z - y$", "$\\rm Y - J$", "$\\rm J - H$", "$\\rm H - K_s$",
-    "$\\rm redshift$"
+    "$\\rm m_i$", "$\\rm redshift$", "$\\rm g - r$", "$\\rm r - i$",
+    "$\\rm i - z$", "$\\rm z - y$", "$\\rm Y - J$", "$\\rm J - H$",
+    "$\\rm H - K_s$",
 ]
 
 
@@ -429,6 +429,9 @@ parser.add_argument(
 parser.add_argument(
     "--n-halo-weight-bins", type=int, default=50,
     help="Number of Fourier evaluation positions for kdescent")
+parser.add_argument(
+    "--num-mag-z-kernels", type=int, default=20,
+    help="Number of kernels for 2D mag-z kdescent term")
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -441,7 +444,8 @@ if __name__ == "__main__":
         hmf_calibration=args.hmf_calibration,
         log_loss=args.log_loss,
         max_n_halos_per_bin=args.max_n_halos_per_bin,
-        n_halo_weight_bins=args.n_halo_weight_bins)
+        n_halo_weight_bins=args.n_halo_weight_bins,
+        num_mag_z_kernels=args.num_mag_z_kernels)
 
     model_params = None
     if args.param_results:

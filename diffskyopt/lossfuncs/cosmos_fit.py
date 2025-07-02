@@ -36,7 +36,7 @@ class CosmosFit:
 
     def __init__(self, zmin=0.4, zmax=2.0, lgmp_min=10.5, sky_area_degsq=0.1,
                  num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
-                 hmf_calibration=None, log_loss=False,
+                 hmf_calibration=None, log_loss=False, num_mag_z_kernels=20,
                  max_n_halos_per_bin=1000, n_halo_weight_bins=10, seed=0):
         self.zmin = zmin
         self.zmax = zmax
@@ -49,6 +49,7 @@ class CosmosFit:
         self.log_loss = log_loss
         self.max_n_halos_per_bin = max_n_halos_per_bin
         self.n_halo_weight_bins = n_halo_weight_bins
+        self.num_mag_z_kernels = num_mag_z_kernels
 
         # --- Load and mask COSMOS data ---
         os.environ["COSMOS20_DRN"] = "/lcrc/project/halotools/COSMOS/"
@@ -116,6 +117,10 @@ class CosmosFit:
             num_fourier_positions=self.num_fourier_positions,
             covariant_kernels=covariant_kernels,
             bandwidth_factor=bandwidth_factor)
+        self.mag_z_kcalc = kdescent.KCalc(
+            self.data_targets[:, :2], self.data_weights,
+            num_kernels=self.num_mag_z_kernels,
+            bandwidth_factor=bandwidth_factor)
 
         # Account for volume difference between COSMOS and diffsky lightcone
         self.volume_factor_weight = COSMOS_SKY_AREA / self.sky_area_degsq
@@ -130,7 +135,7 @@ class CosmosFit:
         colors = cosmos_mags_to_colors(mags)
         i_mag = mags[:, I_BAND_IND]
         photoz = cosmos["photoz"]
-        targets = np.stack([i_mag, *colors.T, photoz], axis=1)
+        targets = np.stack([i_mag, photoz, *colors.T], axis=1)
         weights = jax.nn.sigmoid(
             # sigmoid weights instead of sharp i-band threshold
             (i_band_thresh - i_mag) / thresh_softening)
@@ -166,7 +171,7 @@ class CosmosFit:
 
     @partial(jax.jit, static_argnums=[0, 3])
     def sumstats_from_params(self, params, randkey, modelsamp=False):
-        keys = jax.random.split(randkey, 3)
+        keys = jax.random.split(randkey, 4)
         _res = self.targets_and_weights_from_params(
             params, keys[0], modelsamp=modelsamp)
         model_targets, model_weights = _res
@@ -176,12 +181,15 @@ class CosmosFit:
             keys[1], model_targets, model_weights, return_err=True)
         model_f, data_f, err_f = self.kcalc.compare_fourier_counts(
             keys[2], model_targets, model_weights, return_err=True)
+        model_mz, data_mz, err_mz = self.mag_z_kcalc.compare_kde_counts(
+            keys[3], model_targets[:, :2], model_weights, return_err=True)
 
         # Summed over ranks
-        sumstats = jnp.concatenate([model_k, model_f])
+        sumstats = jnp.concatenate([model_k, model_f, model_mz])
 
         # Not summed over ranks
-        sumstats_aux = jnp.concatenate([data_k, err_k, data_f, err_f])
+        sumstats_aux = jnp.concatenate([
+            data_k, err_k, data_f, err_f, data_mz, err_mz])
 
         return sumstats, sumstats_aux
 
@@ -189,21 +197,33 @@ class CosmosFit:
     def loss_from_sumstats(self, sumstats, sumstats_aux):
         nk = self.num_kernels
         nf = self.num_fourier_positions
-        model_k, model_f = jnp.split(sumstats, [nk])
-        data_k, err_k, data_f, err_f = jnp.split(
-            sumstats_aux, np.cumsum([nk, nk, nf]))
+        nmz = self.num_mag_z_kernels
+        model_k, model_f, model_mz = jnp.split(
+            sumstats, np.cumsum([nk, nf]))
+        data_k, err_k, data_f, err_f, data_mz, err_mz = jnp.split(
+            sumstats_aux, np.cumsum([nk, nk, nf, nf, nmz]))
 
         if self.log_loss:
             eps = 1e-10
             model_k = jnp.log10(model_k.real + eps)
             data_k = jnp.log10(data_k.real + eps)
-            err_k = err_k.mean() / (jnp.mean(data_k.real + eps) * np.log(10))
-            # Not sure if log-Fourier counts is possible/desirable
+            model_mz = jnp.log10(model_mz.real + eps)
+            data_mz = jnp.log10(data_mz.real + eps)
+
+            # err_k = err_k / (data_k.real * np.log(10) + eps)
+            # err_mz = err_mz / (data_mz.real * np.log(10) + eps)
+
+            # Use constant log errors so that fractional difference is
+            # weighted evenly across high- and low-density regions of the PDF
+            err_k = err_mz = 1.0
+
+            # Don't take log of Fourier counts
 
         normalized_residuals = jnp.concatenate([
             (model_k.real - data_k.real) / err_k.real,
             (model_f.real - data_f.real) / err_f.real,
-            (model_f.imag - data_f.imag) / err_f.imag
+            (model_f.imag - data_f.imag) / err_f.imag,
+            (model_mz.real - data_mz.real) / err_mz.real,
         ])
         reduced_chisq = jnp.mean(normalized_residuals**2)
         return reduced_chisq

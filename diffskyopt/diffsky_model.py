@@ -213,7 +213,7 @@ def compute_targets_and_weights(
 
     # Target is the i-band mag + colors between all bands + redshift
     combined_targets = jnp.concatenate(
-        [combined_mags[:, I_BAND_IND, None],
-         combined_colors, z_obs], axis=1)
+        [combined_mags[:, I_BAND_IND, None], z_obs,
+         combined_colors], axis=1)
 
     return combined_targets, combined_weights

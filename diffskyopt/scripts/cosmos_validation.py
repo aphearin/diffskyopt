@@ -11,6 +11,10 @@ import jax
 from astropy.cosmology import Planck15
 from astropy import units
 
+# diffsky@smhm_diagnostic branch
+from diffsky.experimental.diagnostics import check_smhm
+from diffsky.param_utils import diffsky_param_wrapper as dpw
+
 from ..lossfuncs.cosmos_fit import COSMOS_SKY_AREA, CosmosFit
 # from .. import trange
 
@@ -44,8 +48,8 @@ def n_of_z_plot(cosmos_fit, save=False, zbins=30,
     model_targets = np.concatenate(MPI.COMM_WORLD.allgather(model_targets))
     model_weights = np.concatenate(MPI.COMM_WORLD.allgather(model_weights))
     if not MPI.COMM_WORLD.rank:
-        data_z = data_targets[:, -1]
-        model_z = model_targets[:, -1]
+        data_z = data_targets[:, 1]
+        model_z = model_targets[:, 1]
         all_z = np.concatenate([data_z, model_z])
         z_edges = np.linspace(all_z.min(), all_z.max(), zbins)
         z_cens = 0.5 * (z_edges[:-1] + z_edges[1:])
@@ -162,6 +166,21 @@ def n_of_ithresh_plot(cosmos_fit, save=False, ibins=30, ithresh=25.0,
             plt.clf()
 
 
+def smhm_drift_plot(save=False, prefix="", model_params=None):
+    if model_params is None:
+        model_params = cosmos_fit.default_u_param_arr
+    u_param_collection = dpw.get_u_param_collection_from_u_param_array(
+        model_params)
+    diffstarpop_params = dpw.get_param_collection_from_u_param_collection(
+        *u_param_collection)[0]
+
+    if save:
+        check_smhm.plot_diffstarpop_insitu_smhm(
+            diffstarpop_params2=diffstarpop_params,
+            fname=f"{prefix}smhm_drift.png",
+        )
+
+
 parser = argparse.ArgumentParser(
     description="Validate model vs COSMOS data with n(z) and n(<m_i)")
 parser.add_argument(
@@ -203,6 +222,8 @@ if __name__ == "__main__":
             model_params = results["params"][-1]
 
     n_of_z_plot(cosmos_fit, save=args.save, prefix=args.prefix,
-                ithresh=args.iband_max)
+                ithresh=args.iband_max, model_params=model_params)
     n_of_ithresh_plot(cosmos_fit, save=args.save, prefix=args.prefix,
-                      ithresh=args.iband_max)
+                      ithresh=args.iband_max, model_params=model_params)
+    smhm_drift_plot(save=args.save, prefix=args.prefix,
+                    model_params=model_params)

@@ -71,6 +71,9 @@ parser.add_argument(
 parser.add_argument(
     "--n-halo-weight-bins", type=int, default=50,
     help="Number of Fourier evaluation positions for kdescent")
+parser.add_argument(
+    "--num-mag-z-kernels", type=int, default=20,
+    help="Number of kernels for 2D mag-z kdescent term")
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -83,7 +86,8 @@ if __name__ == "__main__":
         hmf_calibration=args.hmf_calibration,
         log_loss=args.log_loss,
         max_n_halos_per_bin=args.max_n_halos_per_bin,
-        n_halo_weight_bins=args.n_halo_weight_bins)
+        n_halo_weight_bins=args.n_halo_weight_bins,
+        num_mag_z_kernels=args.num_mag_z_kernels)
 
     u_param_init = None
     if args.input is not None:
