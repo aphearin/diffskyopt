@@ -18,7 +18,7 @@ ran_key = jax.random.key(1)
 
 def colors_gif(
     cosmos_fit, model_params, prefix="",
-    num_z_bins=20, bins=30, duration=0.5
+    num_z_bins=15, bins=30, duration=0.5, dz=0.2,
 ):
 
     if model_params is None:
@@ -48,16 +48,32 @@ def colors_gif(
     z_model = model_targets[:, 1]
     data_targets = np.delete(data_targets, 1, axis=1)
     model_targets = np.delete(model_targets, 1, axis=1)
-    z_bins = np.linspace(cosmos_fit.zmin, cosmos_fit.zmax, num_z_bins + 1)
+    z_lows = np.linspace(cosmos_fit.zmin, cosmos_fit.zmax - dz, num_z_bins)
+    z_highs = np.linspace(cosmos_fit.zmin + dz, cosmos_fit.zmax, num_z_bins)
     labels = [*TARGET_LABELS[:1], *TARGET_LABELS[2:]]
 
-    fig, axes = plt.subplots(3, 3, figsize=(13, 12), sharey=False)
+    fig, axes = plt.subplots(3, 3, figsize=(13, 12),
+                             gridspec_kw={"wspace": 0.3})
     axes = axes.ravel()
 
+    ranges: list[tuple[float, float]] = []
+    both_targets = np.concatenate(
+        [data_targets, model_targets])
+    both_weights = np.concatenate(
+        [data_weights, model_weights])
+    for i in range(data_targets.shape[1]):
+        quants = np.quantile(
+            both_targets[:, i], [0.005, 0.995], weights=both_weights,
+            method="inverted_cdf")
+        dx = 0.1 * (quants[1] - quants[0])
+        range_i = (quants[0] - dx, quants[1] + dx)
+        ranges.append(range_i)
+
     def plot_slice(i):
-        zlo, zhi = z_bins[i], z_bins[i+1]
+        zlo, zhi = z_lows[i], z_highs[i]
         data_mask = (z_data >= zlo) & (z_data < zhi)
         model_mask = (z_model >= zlo) & (z_model < zhi)
+
         for j, ax in enumerate(axes):
             if j > data_targets.shape[1] - 2:
                 ax.set_visible(False)
@@ -66,12 +82,26 @@ def colors_gif(
             xidx = j
             yidx = j + 1
             ax.clear()
-            # 2D histogram for data
-            H_data, xedges, yedges = np.histogram2d(
+            # Scatter plots for data and model
+            data_alpha = min(5000 / data_weights.sum(), 1)
+            model_alpha = min(5000 / model_weights.sum(), 1)
+            ax.scatter(
                 data_targets[data_mask, xidx], data_targets[data_mask, yidx],
-                bins=bins, weights=data_weights[data_mask])
-            level_max = H_data.max() / 2.0
-            levels = level_max / np.array([50.0, 7.0, 1.0])
+                color="C0", s=0.5, alpha=data_alpha * data_weights[data_mask])
+            ax.scatter(
+                model_targets[model_mask, xidx],
+                model_targets[model_mask, yidx],
+                color="C1", s=0.5,
+                alpha=model_alpha * model_weights[model_mask])
+
+            # 2D histogram for data
+            xedges = np.linspace(*ranges[xidx], bins)
+            yedges = np.linspace(*ranges[yidx], bins)
+            H_data, _, _ = np.histogram2d(
+                data_targets[data_mask, xidx], data_targets[data_mask, yidx],
+                bins=[xedges, yedges], weights=data_weights[data_mask])
+            level_max = H_data.max() / 3.0
+            levels = level_max / np.array([7.0, 1.0])
             X, Y = np.meshgrid(
                 0.5 * (xedges[:-1] + xedges[1:]),
                 0.5 * (yedges[:-1] + yedges[1:]))
@@ -88,14 +118,18 @@ def colors_gif(
                 ax.contour(
                     X, Y, H_model.T, levels=levels, colors="C1",
                     linewidths=2, alpha=0.9, label="Model")
-            ax.set_xlabel(labels[xidx])
-            ax.set_ylabel(labels[yidx])
-            # Dummy handles for legend
-            ax.plot([], [], color="C0", label="COSMOS")
-            ax.plot([], [], color="C1", label="Diffsky")
-            if j == 4:
-                ax.legend(frameon=False)
-        fig.suptitle(f"\n$\\rm z = {(zlo+zhi)/2:.2f}$", fontsize=18)
+            ax.set_xlabel(labels[xidx], fontsize=16)
+            ax.set_ylabel(labels[yidx], fontsize=16)
+            ax.set_xlim(ranges[xidx])
+            ax.set_ylim(ranges[yidx])
+        fig.suptitle(
+            f"\n\n$\\rm z = {(zlo+zhi)/2:.2g} \\pm {dz/2:.2g}$", fontsize=24)
+        handles = [
+            plt.Line2D([], [], color="C0", lw=4, label="COSMOS"),
+            plt.Line2D([], [], color="C1", lw=4, label="Diffsky"),
+        ]
+        fig.legend(
+            handles=handles, loc=(0.5, 0.25), frameon=False, fontsize=20)
 
     pbar = trange(num_z_bins + 1)
 
@@ -108,8 +142,7 @@ def colors_gif(
         fig, update, frames=num_z_bins, blit=False, repeat=True)
 
     ani.save(f"{prefix}colors-through-redshift.gif",
-             writer='pillow', fps=int(1/duration),
-             savefig_kwargs=dict(bbox_inches="tight"))
+             writer='pillow', fps=int(1/duration))
     plt.close(fig)
 
 

@@ -267,7 +267,7 @@ def losscurve_test(cosmos_fit, save=False, model_params=None, prefix=""):
 
 
 def adam_steps_test(cosmos_fit, seed=1, num_learns=15, num_inits=15,
-                    save=False, model_params=None, param_scatter_factor=1.0,
+                    save=False, model_params=None, param_scatter_factor=0.0,
                     modelsamp=True, prefix=""):
     if model_params is None:
         model_params = cosmos_fit.default_u_param_arr

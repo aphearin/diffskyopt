@@ -14,10 +14,18 @@ from diffsky.mass_functions.hmf_calibrations import \
     smdpl_hmf_subs, smdpl_hmf
 from dsps.cosmology.defaults import DEFAULT_COSMOLOGY
 
+# from diffsky.ssp_err_model import ssp_err_model
+# ssp_err_model.Z_CONTROL = jnp.array([0.0, 0.8, 2.0])
+# ssp_err_model.Z_CONTROL = jnp.array([0.0, 0.5, 1.1])  # default
 
 DATA_DIR = pathlib.Path("/lcrc/project/halotools/COSMOS/")
 FILTERS_DIR = pathlib.Path("/home/apearl/data/cosmos_filters/")
-SSP_FILE = DATA_DIR / "ssp_data_fsps_v3.2_lgmet_age.h5"
+SSP_FILE = "ssp_data_fsps_v3.2_lgmet_age.h5"
+# SSP_FILE = "ssp_data_continuum_fsps_v3.2_lgmet_age.h5"
+# SSP_FILE = "ssp_mist_c3k_a_chabrier_wNE_logGasU-2.0_logGasZ0.0.h5"
+# SSP_FILE = "ssp_mist_c3k_a_chabrier_wNE_logGasU-3.0_logGasZ-0.4.h5"
+# SSP_FILE = "ssp_prsc_miles_chabrier_wNE_logGasU-2.5_logGasZ0.0.h5"
+# SSP_FILE = "ssp_prsc_miles_chabrier_wNE_logGasU-3.0_logGasZ-1.0.h5"
 FILTER_FILES = [
     FILTERS_DIR / "g_HSC.txt",
     FILTERS_DIR / "r_HSC.txt",
@@ -31,9 +39,17 @@ FILTER_FILES = [
 ]
 
 FILTER_NAMES = [
-    "HSC_g_MAG", "HSC_r_MAG", "HSC_i_MAG", "HSC_z_MAG", "HSC_y_MAG",
-    "UVISTA_Y_MAG", "UVISTA_J_MAG", "UVISTA_H_MAG", "UVISTA_Ks_MAG",
+    "HSC_g_MAG",
+    "HSC_r_MAG",
+    "HSC_i_MAG",
+    "HSC_z_MAG",
+    "HSC_y_MAG",
+    "UVISTA_Y_MAG",
+    "UVISTA_J_MAG",
+    "UVISTA_H_MAG",
+    "UVISTA_Ks_MAG",
 ]
+
 I_BAND_IND = FILTER_NAMES.index("HSC_i_MAG")
 
 assert len(FILTER_FILES) == len(FILTER_NAMES)
@@ -109,11 +125,11 @@ def generate_lc_data_kern(
 
 def generate_lc_data(z_min, z_max, lgmp_min, sky_area_degsq,
                      ran_key=None, n_z_phot_table=15, logmp_cutoff=0.0,
-                     hmf_calibration=None, volume_weight_factor=1.0):
+                     hmf_calibration=None):
     if ran_key is None:
         ran_key = jax.random.key(0)
 
-    ssp_data = load_ssp_templates(SSP_FILE)
+    ssp_data = load_ssp_templates(DATA_DIR / SSP_FILE)
 
     tcurves = [load_transmission_curve(fn) if str(fn).endswith(".h5") else
                TransmissionCurve(*np.loadtxt(fn).T) for fn in FILTER_FILES]
@@ -131,7 +147,7 @@ def generate_lc_data(z_min, z_max, lgmp_min, sky_area_degsq,
         tcurves,
         z_phot_table,
         logmp_cutoff=logmp_cutoff,
-        hmf_calibration=None,
+        hmf_calibration=hmf_calibration,
     )
     return lc_data
 
