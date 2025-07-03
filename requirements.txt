@@ -2,7 +2,7 @@ numpy
 jax
 diffmah
 diffstar
-diffstarpop @ git+https://github.com/ArgonneCPAC/diffstarpop.git@sepms_satquench
+diffstarpop
 dsps
 diffsky
 diffopt
