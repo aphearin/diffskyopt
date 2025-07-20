@@ -18,7 +18,7 @@ ran_key = jax.random.key(1)
 
 def colors_gif(
     cosmos_fit, model_params, prefix="",
-    num_z_bins=15, bins=30, duration=0.5, dz=0.2,
+    num_z_bins=15, bins=30, duration=0.5, dz=0.2, ithresh=None,
 ):
 
     if model_params is None:
@@ -36,9 +36,18 @@ def colors_gif(
 
     # Gather model targets from all ranks
     model_targets, model_weights = cosmos_fit.targets_and_weights_from_params(
-        model_params, ran_key, modelsamp=False)
+        model_params, ran_key)
     model_targets = np.concatenate(MPI.COMM_WORLD.allgather(model_targets))
     model_weights = np.concatenate(MPI.COMM_WORLD.allgather(model_weights))
+
+    # Filter data and model targets by apparent magnitude threshold
+    if ithresh is not None:
+        data_mask = data_targets[:, 0] < ithresh
+        model_mask = model_targets[:, 0] < ithresh
+        data_targets = data_targets[data_mask]
+        data_weights = data_weights[data_mask]
+        model_targets = model_targets[model_mask]
+        model_weights = model_weights[model_mask]
 
     if MPI.COMM_WORLD.rank:
         return
@@ -52,8 +61,14 @@ def colors_gif(
     z_highs = np.linspace(cosmos_fit.zmin + dz, cosmos_fit.zmax, num_z_bins)
     labels = [*TARGET_LABELS[:1], *TARGET_LABELS[2:]]
 
-    fig, axes = plt.subplots(3, 3, figsize=(13, 12),
-                             gridspec_kw={"wspace": 0.3})
+    if data_targets.shape[1] < 8:
+        fig, axes = plt.subplots(2, 3, figsize=(13, 8),
+                                 gridspec_kw={"wspace": 0.3})
+        title_prefix = "\n"
+    else:
+        fig, axes = plt.subplots(3, 3, figsize=(13, 12),
+                                 gridspec_kw={"wspace": 0.3})
+        title_prefix = "\n\n"
     axes = axes.ravel()
 
     ranges: list[tuple[float, float]] = []
@@ -83,16 +98,20 @@ def colors_gif(
             yidx = j + 1
             ax.clear()
             # Scatter plots for data and model
-            data_alpha = min(5000 / data_weights.sum(), 1)
-            model_alpha = min(5000 / model_weights.sum(), 1)
+            dw = data_weights[data_mask]
+            mw = model_weights[model_mask]
+            data_alpha = 3000 * dw / dw.sum()
+            data_alpha[data_alpha > 1] = 1
+            model_alpha = 3000 * mw / mw.sum()
+            model_alpha[model_alpha > 1] = 1
             ax.scatter(
                 data_targets[data_mask, xidx], data_targets[data_mask, yidx],
-                color="C0", s=0.5, alpha=data_alpha * data_weights[data_mask])
+                color="C0", s=0.5, alpha=data_alpha)
             ax.scatter(
                 model_targets[model_mask, xidx],
                 model_targets[model_mask, yidx],
                 color="C1", s=0.5,
-                alpha=model_alpha * model_weights[model_mask])
+                alpha=model_alpha)
 
             # 2D histogram for data
             xedges = np.linspace(*ranges[xidx], bins)
@@ -123,13 +142,15 @@ def colors_gif(
             ax.set_xlim(ranges[xidx])
             ax.set_ylim(ranges[yidx])
         fig.suptitle(
-            f"\n\n$\\rm z = {(zlo+zhi)/2:.2g} \\pm {dz/2:.2g}$", fontsize=24)
+            f"{title_prefix}$\\rm z = {(zlo+zhi)/2:.1f} \\pm {dz/2:.1f}$",
+            fontsize=24)
         handles = [
             plt.Line2D([], [], color="C0", lw=4, label="COSMOS"),
             plt.Line2D([], [], color="C1", lw=4, label="Diffsky"),
         ]
         fig.legend(
-            handles=handles, loc=(0.5, 0.25), frameon=False, fontsize=20)
+            # handles=handles, loc=(0.5, 0.25), frameon=False, fontsize=20)
+            handles=handles, loc=(0.13, 0.89), frameon=False, fontsize=16)
 
     pbar = trange(num_z_bins + 1)
 
@@ -161,6 +182,12 @@ parser.add_argument(
     "-a", "--sky-area-degsq", type=float, default=0.1,
     help="Sky area in square degrees for the mc lightcone")
 parser.add_argument(
+    "--num-z-grid", type=int, default=100,
+    help="Number of redshift grid points for the mc lightcone")
+parser.add_argument(
+    "--num-m-grid", type=int, default=100,
+    help="Number of lgmp grid points for the mc lightcone")
+parser.add_argument(
     "--param-results", type=str, default=None,
     help="Results .npz file to load final parameter value from")
 parser.add_argument(
@@ -171,6 +198,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cosmos_fit = CosmosFit(
         i_thresh=args.iband_max,
+        num_z_grid=args.num_z_grid,
+        num_m_grid=args.num_m_grid,
         lgmp_min=args.lgmp_min,
         sky_area_degsq=args.sky_area_degsq,
         hmf_calibration=args.hmf_calibration)
@@ -182,5 +211,11 @@ if __name__ == "__main__":
             model_params = results["best_params"]
         else:
             model_params = results["params"][-1]
-
-    colors_gif(cosmos_fit, prefix=args.prefix, model_params=model_params)
+    for ithresh in [21, 23, 25]:
+        if not MPI.COMM_WORLD.rank:
+            print(
+                f"Generating colors gif for i-band threshold {ithresh}",
+                flush=True)
+        colors_gif(cosmos_fit, model_params=model_params,
+                   prefix=args.prefix + "m" + str(ithresh) + "_",
+                   ithresh=ithresh)

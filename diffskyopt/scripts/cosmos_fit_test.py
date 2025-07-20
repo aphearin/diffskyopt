@@ -1,3 +1,4 @@
+import os
 import warnings
 import argparse
 import glob
@@ -24,6 +25,9 @@ TARGET_LABELS = [
     "$\\rm H - K_s$",
 ]
 
+if os.environ.get("DIFFSKYOPT_REMOVE_G_FILTER"):
+    TARGET_LABELS.remove("$\\rm g - r$")
+
 
 def color_magnitude_test(cosmos_fit, save=False, x_index=0, y_index=1,
                          ax=None, show=True, make_legend=True,
@@ -46,7 +50,7 @@ def color_magnitude_test(cosmos_fit, save=False, x_index=0, y_index=1,
     if model_targets_and_weights is None:
         model_targets, model_weights = \
             cosmos_fit.targets_and_weights_from_params(
-                model_params, keys[0], modelsamp=False)
+                model_params, keys[0])
         model_targets = np.concatenate(MPI.COMM_WORLD.allgather(model_targets))
         model_weights = np.concatenate(MPI.COMM_WORLD.allgather(model_weights))
     else:
@@ -83,7 +87,7 @@ def targets_triangle_test(cosmos_fit, save=False, data_label="COSMOS",
             n, n, figsize=(12, 12), sharex="col", sharey="row")[1]
 
     model_targets, model_weights = cosmos_fit.targets_and_weights_from_params(
-        model_params, keys[0], modelsamp=False)
+        model_params, keys[0])
     model_targets = np.concatenate(MPI.COMM_WORLD.allgather(model_targets))
     model_weights = np.concatenate(MPI.COMM_WORLD.allgather(model_weights))
     tnw = model_targets, model_weights
@@ -123,17 +127,17 @@ def targets_triangle_test(cosmos_fit, save=False, data_label="COSMOS",
 
 def targets_corner_test(cosmos_fit, save=False, data_label="COSMOS",
                         model_label="Diffsky Model", model_params=None,
-                        prefix="", loghist=True):
+                        prefix="", loghist=True, ithreshes=None):
     """
     Plot a corner plot (using corner.corner) comparing COSMOS data targets to
     model targets generated with the given model_params.
     """
     if model_params is None:
         model_params = cosmos_fit.default_u_param_arr
+    if ithreshes is None:
+        ithreshes = [21, 23, 25]
 
     # Gather data targets from all ranks
-    if not MPI.COMM_WORLD.rank:
-        print("Computing targets...", end=" ", flush=True)
     data_targets = np.array(cosmos_fit.data_targets)
     data_weights = np.array(cosmos_fit.data_weights)
     assert np.allclose(
@@ -145,76 +149,83 @@ def targets_corner_test(cosmos_fit, save=False, data_label="COSMOS",
 
     # Gather model targets from all ranks
     model_targets, model_weights = cosmos_fit.targets_and_weights_from_params(
-        model_params, keys[0], modelsamp=False)
+        model_params, keys[0])
     model_targets = np.concatenate(MPI.COMM_WORLD.allgather(model_targets))
     model_weights = np.concatenate(MPI.COMM_WORLD.allgather(model_weights))
 
     if not MPI.COMM_WORLD.rank:
-        print("Plotting corner...", end=" ", flush=True)
-        labels = TARGET_LABELS
-        density = False
-        ranges = []
-        for i in range(data_targets.shape[1]):
-            range_i = np.percentile(
-                data_targets[:, i], [1, 99], weights=data_weights,
-                method="inverted_cdf")
-            dx = 0.2 * (range_i[1] - range_i[0])
-            range_i = (range_i[0] - dx, range_i[1] + dx)
-            ranges.append(range_i)
-        # Plot data as filled contours, model as lines
-        histkw = {"density": density, "color": "C0", "histtype": "stepfilled"}
-        fig = corner.corner(
-            data_targets, weights=data_weights, color="C0", bins=18,
-            labels=labels, label_kwargs={"fontsize": 12}, alpha=1.0,
-            plot_density=True, plot_contours=True, fill_contours=True,
-            contour_kwargs={"colors": ["C0"]}, plot_datapoints=False,
-            show_titles=False, title_kwargs={"fontsize": 10},
-            hist_kwargs=histkw, range=ranges,
-        )
-        # Save ylims after first call
-        axes = np.array(fig.axes).reshape(
-            (data_targets.shape[1], data_targets.shape[1]))
-        data_ylims = [axes[i, i].get_ylim()
-                      for i in range(data_targets.shape[1])]
-        if loghist:
-            for i in range(data_targets.shape[1]):
-                axes[i, i].semilogy()
+        for j in trange(len(ithreshes)):
+            ithresh = ithreshes[j]
+            data = data_targets[data_targets[:, 0] < ithresh]
+            model = model_targets[model_targets[:, 0] < ithresh]
+            data_w = data_weights[data_targets[:, 0] < ithresh]
+            model_w = model_weights[model_targets[:, 0] < ithresh]
 
-        histkw = {"density": density, "color": "C1", "lw": 2}
-        with warnings.catch_warnings(action="ignore"):
-            corner.corner(
-                model_targets, weights=model_weights, color="C1", bins=18,
-                labels=labels, fig=fig, alpha=0.8,
-                plot_density=False, plot_contours=True, fill_contours=True,
-                contour_kwargs={"colors": ["C1"]}, plot_datapoints=False,
+            labels = TARGET_LABELS
+            density = False
+            ranges = []
+            for i in range(data.shape[1]):
+                range_i = np.percentile(
+                    data[:, i], [1, 99], weights=data_w,
+                    method="inverted_cdf")
+                dx = 0.2 * (range_i[1] - range_i[0])
+                range_i = (range_i[0] - dx, range_i[1] + dx)
+                ranges.append(range_i)
+            # Plot data as filled contours, model as lines
+            histkw = {"density": density,
+                      "color": "C0", "histtype": "stepfilled"}
+            fig = corner.corner(
+                data, weights=data_w, color="C0", bins=18,
+                labels=labels, label_kwargs={"fontsize": 12}, alpha=1.0,
+                plot_density=True, plot_contours=True, fill_contours=True,
+                contour_kwargs={"colors": ["C0"]}, plot_datapoints=False,
+                show_titles=False, title_kwargs={"fontsize": 10},
                 hist_kwargs=histkw, range=ranges,
             )
-        # Save ylims after second call
-        model_ylims = [axes[i, i].get_ylim()
-                       for i in range(model_targets.shape[1])]
-
-        # Set ylims to encompass both
-        for i in range(data_targets.shape[1]):
-            ymin = min(data_ylims[i][0], model_ylims[i][0])
-            ymax = max(data_ylims[i][1], model_ylims[i][1])
+            # Save ylims after first call
+            axes = np.array(fig.axes).reshape(
+                (data.shape[1], data.shape[1]))
+            data_ylims = [axes[i, i].get_ylim()
+                          for i in range(data.shape[1])]
             if loghist:
-                axes[i, i].semilogy()
-                ymin = max(ymin, ymax / 1e4, axes[i, i].get_ylim()[0])
-            axes[i, i].set_ylim(ymin, ymax)
+                for i in range(data.shape[1]):
+                    axes[i, i].semilogy()
 
-        handles = [
-            plt.Line2D([], [], color="C0", lw=4, label=data_label),
-            plt.Line2D([], [], color="C1", lw=4, label=model_label),
-        ]
-        fig.legend(
-            handles=handles, loc=(0.5, 0.65), frameon=False, fontsize=20)
-        print("Done plotting corner.", flush=True)
-        if save:
-            plt.savefig(
-                f"{prefix}targets_corner_test.png", bbox_inches="tight")
-        else:
-            plt.show()
-        plt.clf()
+            histkw = {"density": density, "color": "C1", "lw": 2}
+            with warnings.catch_warnings(action="ignore"):
+                corner.corner(
+                    model, weights=model_w, color="C1", bins=18,
+                    labels=labels, fig=fig, alpha=0.8,
+                    plot_density=False, plot_contours=True, fill_contours=True,
+                    contour_kwargs={"colors": ["C1"]}, plot_datapoints=False,
+                    hist_kwargs=histkw, range=ranges,
+                )
+            # Save ylims after second call
+            model_ylims = [axes[i, i].get_ylim()
+                           for i in range(model.shape[1])]
+
+            # Set ylims to encompass both
+            for i in range(data.shape[1]):
+                ymin = min(data_ylims[i][0], model_ylims[i][0])
+                ymax = max(data_ylims[i][1], model_ylims[i][1])
+                if loghist:
+                    axes[i, i].semilogy()
+                    ymin = max(ymin, ymax / 1e4, axes[i, i].get_ylim()[0])
+                axes[i, i].set_ylim(ymin, ymax)
+
+            handles = [
+                plt.Line2D([], [], color="C0", lw=4, label=data_label),
+                plt.Line2D([], [], color="C1", lw=4, label=model_label),
+            ]
+            fig.legend(
+                handles=handles, loc=(0.5, 0.65), frameon=False, fontsize=20)
+            if save:
+                plt.savefig(
+                    f"{prefix}m{ithresh:g}_targets_corner_test.png",
+                    bbox_inches="tight")
+            else:
+                plt.show()
+            plt.clf()
 
 
 def plot_losscurve(losscalc, label=None, fixed_key=False, color=None,
@@ -223,34 +234,30 @@ def plot_losscurve(losscalc, label=None, fixed_key=False, color=None,
     loss_vals = []
     for i in trange(len(keys), desc=label):
         key = keys[0] if fixed_key else keys[i]
-        p = losscalc.aux_data["fitobj"].default_u_param_arr * (
+        p = losscalc.aux_data["fit_instance"].default_u_param_arr * (
             (i - 50) / 50.0 + 1.0)
         p_vals.append(p)
         loss_vals.append(losscalc.calc_loss_from_params(p, key))
     p_vals = jnp.array(p_vals)
     loss_vals = jnp.array(loss_vals)
     if not MPI.COMM_WORLD.rank:
-        plt.plot((p_vals[:, 0]
-                  / losscalc.aux_data["fitobj"].default_u_param_arr[0]) - 1,
-                 loss_vals, label=label, color=color, **kwargs)
+        plt.plot(
+            (p_vals[:, 0]
+             / losscalc.aux_data["fit_instance"].default_u_param_arr[0]) - 1,
+            loss_vals, label=label, color=color, **kwargs)
 
 
 def losscurve_test(cosmos_fit, save=False, model_params=None, prefix=""):
     if model_params is None:
         model_params = cosmos_fit.default_u_param_arr
-    calc_fullmodel = cosmos_fit.get_multi_grad_calc(modelsamp=False)
-    calc_hmfsamp = cosmos_fit.get_multi_grad_calc(modelsamp=True)
+    calc = cosmos_fit.get_multi_grad_calc()
 
-    # Characteristic noise: modelsamp=True, random key varies
-    plot_losscurve(calc_hmfsamp, label="Characteristic noise",
+    # Characteristic noise: random key varies
+    plot_losscurve(calc, label="Characteristic noise",
                    fixed_key=False, color="grey", lw=1)
 
-    # Full model: modelsamp=False, fixed key
-    plot_losscurve(calc_fullmodel, label="Full model",
-                   fixed_key=True, color="C0", lw=2)
-
-    # HMF-sampled model: modelsamp=True, fixed key
-    plot_losscurve(calc_hmfsamp, label="HMF-sampled model",
+    # HMF-sampled model: fixed key
+    plot_losscurve(calc, label="HMF-sampled model",
                    fixed_key=True, color="C1", lw=2)
 
     if not MPI.COMM_WORLD.rank:
@@ -268,11 +275,11 @@ def losscurve_test(cosmos_fit, save=False, model_params=None, prefix=""):
 
 def adam_steps_test(cosmos_fit, seed=1, num_learns=15, num_inits=15,
                     save=False, model_params=None, param_scatter_factor=0.0,
-                    modelsamp=True, prefix=""):
+                    prefix=""):
     if model_params is None:
         model_params = cosmos_fit.default_u_param_arr
     # Run Adam optimization from random initializations and plot loss
-    calc = cosmos_fit.get_multi_grad_calc(modelsamp=modelsamp)
+    calc = cosmos_fit.get_multi_grad_calc()
     keys = jax.random.split(jax.random.key(seed), num_inits * 2)
     if not param_scatter_factor:
         u_param_inits = jnp.array([model_params for i in range(num_inits)])
@@ -331,8 +338,7 @@ def adam_steps_test(cosmos_fit, seed=1, num_learns=15, num_inits=15,
 
 
 def loss_results_plot(cosmos_fit, result_files, save=False,
-                      recompute_loss=False, thin=1, seed=1, modelsamp=True,
-                      prefix=""):
+                      recompute_loss=False, thin=1, seed=1, prefix=""):
     if not result_files:
         raise ValueError(f"No results files given: {result_files=}")
     randkey = jax.random.key(seed)
@@ -343,7 +349,7 @@ def loss_results_plot(cosmos_fit, result_files, save=False,
         start, end = edges[i:i+2]
         res = results[i]
         if recompute_loss:
-            calc = cosmos_fit.get_multi_grad_calc(modelsamp=modelsamp)
+            calc = cosmos_fit.get_multi_grad_calc()
             loss = []
             params = res["params"][::thin]
             iterator = trange(
@@ -388,11 +394,20 @@ parser.add_argument(
     "-a", "--sky-area-degsq", type=float, default=0.1,
     help="Sky area in square degrees for the mc lightcone")
 parser.add_argument(
+    "--num-z-grid", type=int, default=100,
+    help="Number of redshift grid points for the mc lightcone")
+parser.add_argument(
+    "--num-m-grid", type=int, default=100,
+    help="Number of lgmp grid points for the mc lightcone")
+parser.add_argument(
     "-k", "--num-kernels", type=int, default=40,
     help="Number of kernels for kdescent")
 parser.add_argument(
     "-f", "--num-fourier-positions", type=int, default=20,
     help="Number of Fourier evaluation positions for kdescent")
+parser.add_argument(
+    "--num-mag-z-kernels", type=int, default=40,
+    help="Number of kernels for 2D mag-z kdescent term")
 parser.add_argument(
     "--skip-corner", action="store_true",
     help="Skip targets_corner_test")
@@ -430,8 +445,8 @@ parser.add_argument(
     "--n-halo-weight-bins", type=int, default=50,
     help="Number of Fourier evaluation positions for kdescent")
 parser.add_argument(
-    "--num-mag-z-kernels", type=int, default=20,
-    help="Number of kernels for 2D mag-z kdescent term")
+    "--kidw", type=float, default=0.0,
+    help="Inverse density weighting for kdescent")
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -445,7 +460,8 @@ if __name__ == "__main__":
         log_loss=args.log_loss,
         max_n_halos_per_bin=args.max_n_halos_per_bin,
         n_halo_weight_bins=args.n_halo_weight_bins,
-        num_mag_z_kernels=args.num_mag_z_kernels)
+        num_mag_z_kernels=args.num_mag_z_kernels,
+        kde_idw_power=args.kidw)
 
     model_params = None
     if args.param_results:

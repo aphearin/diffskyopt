@@ -22,27 +22,24 @@ def plot_losscurve(losscalc, label=None, fixed_key=False, **kwargs):
     loss_vals = []
     for i in trange(len(keys), desc=label):
         key = keys[0] if fixed_key else keys[i]
-        p = losscalc.aux_data["fitobj"].default_u_param_arr * (
+        p = losscalc.aux_data["fit_instance"].default_u_param_arr * (
             (i - 50) / 50.0 + 1.0)
         p_vals.append(p)
         loss_vals.append(losscalc.calc_loss_from_params(p, key))
     p_vals = jnp.array(p_vals)
     loss_vals = jnp.array(loss_vals)
     if not MPI.COMM_WORLD.rank:
-        plt.plot((p_vals[:, 0]
-                  / losscalc.aux_data["fitobj"].default_u_param_arr[0]) - 1,
-                 loss_vals, label=label, **kwargs)
+        plt.plot(
+            (p_vals[:, 0]
+             / losscalc.aux_data["fit_instance"].default_u_param_arr[0]) - 1,
+            loss_vals, label=label, **kwargs)
 
 
 def losscurve_test(self_fit, save=False, prefix=""):
-    calc_sampdata_sampmodel = self_fit.get_multi_grad_calc(
-        datasamp=True, modelsamp=True)
-    calc_fulldata_fullmodel = self_fit.get_multi_grad_calc(
-        datasamp=False, modelsamp=False)
-    calc_fulldata_sampmodel = self_fit.get_multi_grad_calc(
-        datasamp=False, modelsamp=True)
-    calc_sampdata_fullmodel = self_fit.get_multi_grad_calc(
-        datasamp=True, modelsamp=False)
+    calc_sampdata_sampmodel = self_fit.get_multi_grad_calc()
+    calc_fulldata_fullmodel = self_fit.get_multi_grad_calc()
+    calc_fulldata_sampmodel = self_fit.get_multi_grad_calc()
+    calc_sampdata_fullmodel = self_fit.get_multi_grad_calc()
 
     # One non-fixed key curve to demonstrate characteristic noise
     plot_losscurve(calc_sampdata_sampmodel, label="Characteristic noise",
@@ -77,8 +74,7 @@ def losscurve_test(self_fit, save=False, prefix=""):
 
 def adam_steps_test(self_fit, seed=1, num_learns=15, num_inits=15,
                     save=False, prefix=""):
-    calc_sampdata_sampmodel = self_fit.get_multi_grad_calc(
-        datasamp=True, modelsamp=True)
+    calc_sampdata_sampmodel = self_fit.get_multi_grad_calc()
     keys = jax.random.split(jax.random.key(seed), num_inits * 2)
 
     u_param_inits = [jax.random.multivariate_normal(
@@ -173,6 +169,12 @@ parser.add_argument(
     "-a", "--sky-area-degsq", type=float, default=0.01,
     help="Sky area in square degrees for mc lightcone")
 parser.add_argument(
+    "--num-z-grid", type=int, default=100,
+    help="Number of redshift grid points for the mc lightcone")
+parser.add_argument(
+    "--num-m-grid", type=int, default=100,
+    help="Number of lgmp grid points for the mc lightcone")
+parser.add_argument(
     "-k", "--num-kernels", type=int, default=40,
     help="Number of kernels for kdescent")
 parser.add_argument(
@@ -195,6 +197,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     self_fit = SelfFit(
         i_thresh=args.iband_max,
+        num_z_grid=args.num_z_grid,
+        num_m_grid=args.num_m_grid,
         lgmp_min=args.lgmp_min,
         sky_area_degsq=args.sky_area_degsq,
         num_kernels=args.num_kernels,

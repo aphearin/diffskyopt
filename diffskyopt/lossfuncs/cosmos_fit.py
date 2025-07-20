@@ -14,9 +14,8 @@ from cosmos20_colors import load_cosmos20
 from diffsky.param_utils import diffsky_param_wrapper as dpw
 
 from ..diffsky_model import (
-    generate_lc_data,
+    generate_weighted_grid_lc_data,
     compute_targets_and_weights,
-    downsample_upweight_lc_data,
     lc_data_slice,
     cosmos_mags_to_colors,
     FILTER_NAMES,
@@ -34,13 +33,19 @@ class CosmosFit:
     default_u_param_arr = dpw.unroll_u_param_collection_into_flat_array(
         *u_param_collection)
 
-    def __init__(self, zmin=0.4, zmax=2.0, lgmp_min=10.5, sky_area_degsq=0.1,
+    def __init__(self, zmin=0.4, zmax=2.0, num_z_grid=100,
+                 lgmp_min=10.5, lgmp_max=15.0, num_m_grid=100,
+                 sky_area_degsq=COSMOS_SKY_AREA,
                  num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
                  hmf_calibration=None, log_loss=False, num_mag_z_kernels=20,
-                 max_n_halos_per_bin=1000, n_halo_weight_bins=10, seed=0):
+                 max_n_halos_per_bin=1000, n_halo_weight_bins=10,
+                 kde_idw_power=0.0, seed=0):
         self.zmin = zmin
         self.zmax = zmax
+        self.num_z_grid = num_z_grid
         self.lgmp_min = lgmp_min
+        self.lgmp_max = lgmp_max
+        self.num_m_grid = num_m_grid
         self.sky_area_degsq = sky_area_degsq
         self.num_kernels = num_kernels
         self.num_fourier_positions = num_fourier_positions
@@ -50,6 +55,7 @@ class CosmosFit:
         self.max_n_halos_per_bin = max_n_halos_per_bin
         self.n_halo_weight_bins = n_halo_weight_bins
         self.num_mag_z_kernels = num_mag_z_kernels
+        self.kde_idw_power = kde_idw_power
 
         # --- Load and mask COSMOS data ---
         os.environ["COSMOS20_DRN"] = "/lcrc/project/halotools/COSMOS/"
@@ -74,36 +80,25 @@ class CosmosFit:
         ran_keys = jax.random.split(jax.random.key(seed), 3)
         if RANK == 0:
             # Generate full lightcone data ONLY on rank 0
-            full_lc_data = generate_lc_data(
-                self.zmin, self.zmax, lgmp_min=self.lgmp_min,
+            full_lc_data, full_halo_upweights = generate_weighted_grid_lc_data(
+                self.zmin, self.zmax, self.num_z_grid,
+                self.lgmp_min, self.lgmp_max, self.num_m_grid,
                 sky_area_degsq=self.sky_area_degsq, ran_key=ran_keys[0],
                 hmf_calibration=self.hmf_calibration)
-            _res = downsample_upweight_lc_data(
-                full_lc_data, lgmp_min=self.lgmp_min, ran_key=ran_keys[1],
-                max_n_halos_per_bin=self.max_n_halos_per_bin,
-                n_halo_weight_bins=self.n_halo_weight_bins)
-            full_downsampled_lc_data, full_halo_upweights = _res
 
             # Split lightcone data ONLY on rank 0
             indices = np.array_split(np.arange(full_lc_data.z_obs.size), SIZE)
             lc_data_slices = [lc_data_slice(
                 full_lc_data, idx) for idx in indices]
-            indices = np.array_split(np.arange(
-                full_downsampled_lc_data.z_obs.size), SIZE)
-            downsampled_lc_data_slices = [lc_data_slice(
-                full_downsampled_lc_data, idx) for idx in indices]
             halo_upweights_slices = [
                 full_halo_upweights[idx] for idx in indices]
         else:
             lc_data_slices = None
-            downsampled_lc_data_slices = None
             halo_upweights_slices = None
 
         # Distribute lc_data and downsampled_lc_data across MPI ranks
         self.lc_data = MPI.COMM_WORLD.scatter(
             lc_data_slices, root=0)
-        self.downsampled_lc_data = MPI.COMM_WORLD.scatter(
-            downsampled_lc_data_slices, root=0)
         self.halo_upweights = MPI.COMM_WORLD.scatter(
             halo_upweights_slices, root=0)
 
@@ -114,11 +109,13 @@ class CosmosFit:
             num_kernels=self.num_kernels,
             num_fourier_positions=self.num_fourier_positions,
             covariant_kernels=covariant_kernels,
-            bandwidth_factor=bandwidth_factor)
+            bandwidth_factor=bandwidth_factor,
+            inverse_density_weight_power=False)
         self.mag_z_kcalc = kdescent.KCalc(
             self.data_targets[:, :2], self.data_weights,
             num_kernels=self.num_mag_z_kernels,
-            bandwidth_factor=bandwidth_factor)
+            bandwidth_factor=bandwidth_factor,
+            inverse_density_weight_power=self.kde_idw_power)
 
         # Account for volume difference between COSMOS and diffsky lightcone
         self.volume_factor_weight = COSMOS_SKY_AREA / self.sky_area_degsq
@@ -148,30 +145,25 @@ class CosmosFit:
         weights = jnp.array(weights[msk_good_colors & good_weights])
         return targets, weights
 
-    def get_multi_grad_calc(self, modelsamp=True):
+    def get_multi_grad_calc(self):
         return self.MultiGradModel(aux_data=dict(
-            fitobj=self, modelsamp=modelsamp))
+            fit_instance=self))
 
-    @partial(jax.jit, static_argnums=[0, 3])
-    def targets_and_weights_from_params(self, params, randkey,
-                                        modelsamp=False):
-        data = self.downsampled_lc_data if modelsamp else self.lc_data
-        weights = self.volume_factor_weight
-        if modelsamp:
-            weights = self.halo_upweights
-
+    @partial(jax.jit, static_argnums=[0])
+    def targets_and_weights_from_params(self, params, randkey):
         # Each rank must have a UNIQUE key to compute photometry
         targets, weights = compute_targets_and_weights(
-            params, data, ran_key=jax.random.split(randkey, SIZE)[RANK],
-            weights=weights, i_band_thresh=self.i_thresh)
+            params, self.lc_data,
+            ran_key=jax.random.split(randkey, SIZE)[RANK],
+            weights=self.halo_upweights, i_band_thresh=self.i_thresh)
 
         return targets, weights
 
-    @partial(jax.jit, static_argnums=[0, 3])
-    def sumstats_from_params(self, params, randkey, modelsamp=False):
+    @partial(jax.jit, static_argnums=[0])
+    def sumstats_from_params(self, params, randkey):
         keys = jax.random.split(randkey, 4)
         _res = self.targets_and_weights_from_params(
-            params, keys[0], modelsamp=modelsamp)
+            params, keys[0])
         model_targets, model_weights = _res
 
         # Each rank must have the SAME randkey in kdescent
@@ -232,14 +224,14 @@ class CosmosFit:
         sumstats_func_has_aux: bool = True
 
         def calc_partial_sumstats_from_params(self, params, randkey):
-            fitobj = self.aux_data["fitobj"]
-            sumstats, sumstats_aux = fitobj.sumstats_from_params(
-                params, randkey, modelsamp=self.aux_data["modelsamp"])
+            fit_instance = self.aux_data["fit_instance"]
+            sumstats, sumstats_aux = fit_instance.sumstats_from_params(
+                params, randkey)
             return sumstats, sumstats_aux
 
         def calc_loss_from_sumstats(self, sumstats, sumstats_aux,
                                     randkey=None):
             del randkey
-            fitobj = self.aux_data["fitobj"]
-            loss = fitobj.loss_from_sumstats(sumstats, sumstats_aux)
+            fit_instance = self.aux_data["fit_instance"]
+            loss = fit_instance.loss_from_sumstats(sumstats, sumstats_aux)
             return loss

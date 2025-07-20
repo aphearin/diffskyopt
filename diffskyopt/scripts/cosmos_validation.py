@@ -31,10 +31,12 @@ def cosmos_volume(z_min, z_max):
 
 def n_of_z_plot(cosmos_fit, save=False, zbins=30,
                 ax=None, show=True, make_legend=True,
-                model_params=None, prefix="", ithresh=25.0,
-                data_label="COSMOS", model_label="Diffsky Model"):
+                model_params=None, prefix="",
+                data_label="COSMOS"):
     if model_params is None:
         model_params = cosmos_fit.default_u_param_arr
+    # i_threshes = [22.0, 23.0, 24.0, 25.0]
+    i_threshes = [20.0, 21.5, 23.0, 25.0]
     # Plot a color-magnitude diagram: g-r vs i-band
     data_targets, data_weights = (cosmos_fit.data_targets,
                                   cosmos_fit.data_weights)
@@ -43,33 +45,44 @@ def n_of_z_plot(cosmos_fit, save=False, zbins=30,
     # and overplot with a seaborn.kdeplot
     model_targets, model_weights = \
         cosmos_fit.targets_and_weights_from_params(
-            model_params, ran_key, modelsamp=False)
+            model_params, ran_key)
     model_targets = np.concatenate(MPI.COMM_WORLD.allgather(model_targets))
     model_weights = np.concatenate(MPI.COMM_WORLD.allgather(model_weights))
     if not MPI.COMM_WORLD.rank:
+        data_i = data_targets[:, 0]
+        model_i = model_targets[:, 0]
         data_z = data_targets[:, 1]
         model_z = model_targets[:, 1]
-        all_z = np.concatenate([data_z, model_z])
-        z_edges = np.linspace(all_z.min(), all_z.max(), zbins)
+        z_edges = np.linspace(cosmos_fit.zmin, cosmos_fit.zmax, zbins)
         z_cens = 0.5 * (z_edges[:-1] + z_edges[1:])
-        data_n_of_z = np.histogram(data_z, z_edges, weights=data_weights)[0]
-        model_n_of_z = np.histogram(model_z, z_edges, weights=model_weights)[0]
-
-        # cosmos_volume_per_zbin = np.array([
-        #     cosmos_volume(*z_edges[i:i+2]) for i in range(len(z_cens))])
-        # data_n_of_z /= cosmos_volume_per_zbin
-        # model_n_of_z /= cosmos_volume_per_zbin
         dz = np.diff(z_edges)
-        data_n_of_z /= dz
-        model_n_of_z /= dz
+        for i, ithresh in enumerate(i_threshes):
+            data_n_of_z = np.histogram(
+                data_z[data_i < ithresh], z_edges,
+                weights=data_weights[data_i < ithresh])[0]
+            model_n_of_z = np.histogram(
+                model_z[model_i < ithresh], z_edges,
+                weights=model_weights[model_i < ithresh])[0]
 
-        if ax is None:
-            ax = plt.subplots()[1]
-        ax.plot(z_cens, data_n_of_z, label=data_label)
-        ax.plot(z_cens, model_n_of_z, label=model_label)
+            # cosmos_volume_per_zbin = np.array([
+            #     cosmos_volume(*z_edges[i:i+2]) for i in range(len(z_cens))])
+            # data_n_of_z /= cosmos_volume_per_zbin
+            # model_n_of_z /= cosmos_volume_per_zbin
+            data_n_of_z /= dz
+            model_n_of_z /= dz
+            model_n_of_z /= (data_n_of_z * dz).sum()
+            data_n_of_z /= (data_n_of_z * dz).sum()
+
+            if ax is None:
+                ax = plt.subplots()[1]
+            ax.step(z_edges, [data_n_of_z[0], *data_n_of_z],
+                    color=f"C{i}", ls="--")
+            ax.plot(z_cens, model_n_of_z, label=f"$\\rm m_i < {ithresh:.1f}$")
+        ax.step([], [], color="k", ls="--", label=data_label)
         ax.semilogy()
+        ax.set_xlim(cosmos_fit.zmin, cosmos_fit.zmax)
         ax.set_xlabel("$z$")
-        ax.set_ylabel(f"$\\rm n(z | m_i < {ithresh:.1f})$")
+        ax.set_ylabel("$\\rm n(z)$")
 
         if make_legend:
             ax.legend(frameon=False)
@@ -92,7 +105,7 @@ def n_of_ithresh_plot(cosmos_fit, save=False, ibins=30, ithresh=25.0,
 
     model_targets, model_weights = \
         cosmos_fit.targets_and_weights_from_params(
-            model_params, ran_key, modelsamp=False)
+            model_params, ran_key)
     model_targets = np.concatenate(MPI.COMM_WORLD.allgather(model_targets))
     model_weights = np.concatenate(MPI.COMM_WORLD.allgather(model_weights))
     if not MPI.COMM_WORLD.rank:
@@ -198,6 +211,12 @@ parser.add_argument(
     "-a", "--sky-area-degsq", type=float, default=0.1,
     help="Sky area in square degrees for the mc lightcone")
 parser.add_argument(
+    "--num-z-grid", type=int, default=100,
+    help="Number of redshift grid points for the mc lightcone")
+parser.add_argument(
+    "--num-m-grid", type=int, default=100,
+    help="Number of lgmp grid points for the mc lightcone")
+parser.add_argument(
     "--param-results", type=str, default=None,
     help="Results .npz file to load final parameter value from")
 parser.add_argument(
@@ -208,6 +227,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cosmos_fit = CosmosFit(
         i_thresh=args.iband_max,
+        num_z_grid=args.num_z_grid,
+        num_m_grid=args.num_m_grid,
         lgmp_min=args.lgmp_min,
         sky_area_degsq=args.sky_area_degsq,
         hmf_calibration=args.hmf_calibration)
@@ -221,7 +242,7 @@ if __name__ == "__main__":
             model_params = results["params"][-1]
 
     n_of_z_plot(cosmos_fit, save=args.save, prefix=args.prefix,
-                ithresh=args.iband_max, model_params=model_params)
+                model_params=model_params)
     n_of_ithresh_plot(cosmos_fit, save=args.save, prefix=args.prefix,
                       ithresh=args.iband_max, model_params=model_params)
     smhm_drift_plot(save=args.save, prefix=args.prefix,

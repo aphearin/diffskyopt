@@ -1,3 +1,4 @@
+import os
 import pathlib
 import numpy as np
 
@@ -12,20 +13,28 @@ from diffsky.mass_functions.fitting_utils.calibrations \
     import hacc_core_shmf_params
 from diffsky.mass_functions.hmf_calibrations import \
     smdpl_hmf_subs, smdpl_hmf
+from diffsky.ssp_err_model import ssp_err_model
 from dsps.cosmology.defaults import DEFAULT_COSMOLOGY
 
-# from diffsky.ssp_err_model import ssp_err_model
-# ssp_err_model.Z_CONTROL = jnp.array([0.0, 0.8, 2.0])
-# ssp_err_model.Z_CONTROL = jnp.array([0.0, 0.5, 1.1])  # default
+if os.environ.get("DIFFSKYOPT_EXPAND_ZRANGE_SSP_ERR"):
+    ssp_err_model.Z_INTERP_ABSCISSA = jnp.array([0.6, 1.6])
+    # default = jnp.array([0.5, 0.75])
 
 DATA_DIR = pathlib.Path("/lcrc/project/halotools/COSMOS/")
 FILTERS_DIR = pathlib.Path("/home/apearl/data/cosmos_filters/")
-SSP_FILE = "ssp_data_fsps_v3.2_lgmet_age.h5"
-# SSP_FILE = "ssp_data_continuum_fsps_v3.2_lgmet_age.h5"
-# SSP_FILE = "ssp_mist_c3k_a_chabrier_wNE_logGasU-2.0_logGasZ0.0.h5"
-# SSP_FILE = "ssp_mist_c3k_a_chabrier_wNE_logGasU-3.0_logGasZ-0.4.h5"
-# SSP_FILE = "ssp_prsc_miles_chabrier_wNE_logGasU-2.5_logGasZ0.0.h5"
-# SSP_FILE = "ssp_prsc_miles_chabrier_wNE_logGasU-3.0_logGasZ-1.0.h5"
+ssp_files = [
+    "ssp_data_fsps_v3.2_lgmet_age.h5",
+    "ssp_data_continuum_fsps_v3.2_lgmet_age.h5",
+    "ssp_mist_c3k_a_chabrier_wNE_logGasU-2.0_logGasZ0.0.h5",
+    "ssp_mist_c3k_a_chabrier_wNE_logGasU-3.0_logGasZ-0.4.h5",
+    "ssp_prsc_miles_chabrier_wNE_logGasU-2.5_logGasZ0.0.h5",
+    "ssp_prsc_miles_chabrier_wNE_logGasU-3.0_logGasZ-1.0.h5",
+]
+alt_ssp = os.environ.get("DIFFSKYOPT_ALT_SSP")
+if alt_ssp:
+    SSP_FILE = ssp_files[int(alt_ssp)]
+else:
+    SSP_FILE = ssp_files[0]
 FILTER_FILES = [
     FILTERS_DIR / "g_HSC.txt",
     FILTERS_DIR / "r_HSC.txt",
@@ -49,6 +58,10 @@ FILTER_NAMES = [
     "UVISTA_H_MAG",
     "UVISTA_Ks_MAG",
 ]
+
+if os.environ.get("DIFFSKYOPT_REMOVE_G_FILTER"):
+    FILTER_FILES.remove(FILTERS_DIR / "g_HSC.txt")
+    FILTER_NAMES.remove("HSC_g_MAG")
 
 I_BAND_IND = FILTER_NAMES.index("HSC_i_MAG")
 
@@ -193,6 +206,96 @@ def downsample_upweight_lc_data(lc_data, lgmp_min, n_halo_weight_bins=10,
 
     downsampled_lc_data = lc_data_slice(lc_data, downsampled_halo_indices)
     return downsampled_lc_data, downsampled_halo_weights
+
+
+def generate_weighted_grid_lc_data_kern(
+    ran_key,
+    lgmp_min,
+    lgmp_max,
+    num_m_grid,
+    z_min,
+    z_max,
+    num_z_grid,
+    sky_area_degsq,
+    ssp_data,
+    cosmo_params,
+    tcurves,
+    z_phot_table,
+    logmp_cutoff=0.0,
+    hmf_calibration=None,
+):
+    lgmp_grid = jnp.linspace(lgmp_min, lgmp_max, num_m_grid)
+    z_grid = jnp.linspace(z_min, z_max, num_z_grid)
+    mclh_args = (ran_key, lgmp_grid, z_grid, sky_area_degsq)
+    mclh_kwargs = dict()
+    if hmf_calibration == "smdpl_hmf":
+        mclh_kwargs["hmf_params"] = smdpl_hmf.HMF_PARAMS
+    elif hmf_calibration == "smdpl_shmf":
+        mclh_kwargs["hmf_params"] = smdpl_hmf_subs.HMF_PARAMS
+    elif hmf_calibration == "hacc_shmf":
+        mclh_kwargs["hmf_params"] = hacc_core_shmf_params.HMF_PARAMS
+    else:
+        assert hmf_calibration is None, f"Unrecognized {hmf_calibration=}"
+
+    res = lc_phot_kern.mclh.get_weighted_lightcone_grid_host_halo_diffmah(
+        *mclh_args, logmp_cutoff=logmp_cutoff, **mclh_kwargs)  # type: ignore
+
+    t0 = lc_phot_kern.flat_wcdm.age_at_z0(*cosmo_params)
+    t_table = jnp.linspace(lc_phot_kern.T_TABLE_MIN,
+                           t0, lc_phot_kern.N_SFH_TABLE)
+
+    precomputed_ssp_mag_table = \
+        lc_phot_kern.mclh.get_precompute_ssp_mag_redshift_table(
+            tcurves, ssp_data, z_phot_table
+        )
+    wave_eff_table = lc_phot_kern.get_wave_eff_table(z_phot_table, tcurves)
+
+    lc_data = lc_phot_kern.LCData(
+        res["z_obs"],
+        res["t_obs"],
+        res["mah_params"],
+        res["logmp0"],
+        t_table,
+        ssp_data,
+        precomputed_ssp_mag_table,
+        z_phot_table,
+        wave_eff_table,
+    )
+    return lc_data, res["nhalos"]
+
+
+def generate_weighted_grid_lc_data(z_min, z_max, num_z_grid,
+                                   lgmp_min, lgmp_max, num_m_grid,
+                                   sky_area_degsq, ran_key=None,
+                                   n_z_phot_table=15, logmp_cutoff=0.0,
+                                   hmf_calibration=None):
+    if ran_key is None:
+        ran_key = jax.random.key(0)
+
+    ssp_data = load_ssp_templates(DATA_DIR / SSP_FILE)
+
+    tcurves = [load_transmission_curve(fn) if str(fn).endswith(".h5") else
+               TransmissionCurve(*np.loadtxt(fn).T) for fn in FILTER_FILES]
+
+    z_phot_table = np.linspace(z_min, z_max, n_z_phot_table)
+
+    lc_data, halo_weights = generate_weighted_grid_lc_data_kern(
+        ran_key,
+        lgmp_min,
+        lgmp_max,
+        num_m_grid,
+        z_min,
+        z_max,
+        num_z_grid,
+        sky_area_degsq,
+        ssp_data,
+        DEFAULT_COSMOLOGY,
+        tcurves,
+        z_phot_table,
+        logmp_cutoff=logmp_cutoff,
+        hmf_calibration=hmf_calibration,
+    )
+    return lc_data, halo_weights
 
 
 @jax.jit

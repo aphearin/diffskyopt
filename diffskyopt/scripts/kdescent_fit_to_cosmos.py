@@ -8,9 +8,9 @@ from ..lossfuncs.cosmos_fit import CosmosFit
 
 
 def adam_fit(cosmos_fit, out, seed=1, nsteps=1000, u_param_init=None,
-             learning_rate=0.1, progress=True, modelsamp=True):
+             learning_rate=0.1, progress=True):
     # Run Adam optimization from random initializations and plot loss
-    calc = cosmos_fit.get_multi_grad_calc(modelsamp=modelsamp)
+    calc = cosmos_fit.get_multi_grad_calc()
     key = jax.random.key(seed)
     if u_param_init is None:
         u_param_init = cosmos_fit.default_u_param_arr
@@ -54,11 +54,20 @@ parser.add_argument(
     "-a", "--sky-area-degsq", type=float, default=0.1,
     help="Sky area in square degrees for the mc lightcone")
 parser.add_argument(
+    "--num-z-grid", type=int, default=100,
+    help="Number of redshift grid points for the mc lightcone")
+parser.add_argument(
+    "--num-m-grid", type=int, default=100,
+    help="Number of lgmp grid points for the mc lightcone")
+parser.add_argument(
     "-k", "--num-kernels", type=int, default=40,
     help="Number of kernels for kdescent")
 parser.add_argument(
     "-f", "--num-fourier-positions", type=int, default=20,
     help="Number of Fourier evaluation positions for kdescent")
+parser.add_argument(
+    "--num-mag-z-kernels", type=int, default=40,
+    help="Number of kernels for 2D mag-z kdescent term")
 parser.add_argument(
     "--hmf-calibration", type=str, default=None,
     help="Specify diffmahpop params ('smdpl_hmf', 'smdpl_shmf', 'hacc_shmf')")
@@ -72,14 +81,16 @@ parser.add_argument(
     "--n-halo-weight-bins", type=int, default=50,
     help="Number of Fourier evaluation positions for kdescent")
 parser.add_argument(
-    "--num-mag-z-kernels", type=int, default=20,
-    help="Number of kernels for 2D mag-z kdescent term")
+    "--kidw", type=float, default=0.0,
+    help="Inverse density weighting for kdescent")
 
 if __name__ == "__main__":
     args = parser.parse_args()
     cosmos_fit = CosmosFit(
         i_thresh=args.iband_max,
         lgmp_min=args.lgmp_min,
+        num_z_grid=args.num_z_grid,
+        num_m_grid=args.num_m_grid,
         sky_area_degsq=args.sky_area_degsq,
         num_kernels=args.num_kernels,
         num_fourier_positions=args.num_fourier_positions,
@@ -87,7 +98,8 @@ if __name__ == "__main__":
         log_loss=args.log_loss,
         max_n_halos_per_bin=args.max_n_halos_per_bin,
         n_halo_weight_bins=args.n_halo_weight_bins,
-        num_mag_z_kernels=args.num_mag_z_kernels)
+        num_mag_z_kernels=args.num_mag_z_kernels,
+        kde_idw_power=args.kidw)
 
     u_param_init = None
     if args.input is not None:
