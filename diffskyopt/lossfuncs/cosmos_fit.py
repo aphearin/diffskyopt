@@ -104,18 +104,42 @@ class CosmosFit:
 
         covariant_kernels = False
         bandwidth_factor = 2.0
-        self.kcalc = kdescent.KCalc(
-            self.data_targets, self.data_weights,
-            num_kernels=self.num_kernels,
-            num_fourier_positions=self.num_fourier_positions,
-            covariant_kernels=covariant_kernels,
-            bandwidth_factor=bandwidth_factor,
-            inverse_density_weight_power=False)
-        self.mag_z_kcalc = kdescent.KCalc(
-            self.data_targets[:, :2], self.data_weights,
-            num_kernels=self.num_mag_z_kernels,
-            bandwidth_factor=bandwidth_factor,
-            inverse_density_weight_power=self.kde_idw_power)
+        ktrain_fn = (f"ktrain_nk{self.num_kernels}_"
+                     f"nf{self.num_fourier_positions}.npz")
+        mag_z_ktrain_fn = (f"mag_z_ktrain_nk{self.num_mag_z_kernels}_"
+                           f"idwp{self.kde_idw_power:.2g}.npz")
+        if os.path.exists(ktrain_fn):
+            ktrain = kdescent.KPretrainer.load(ktrain_fn)
+        else:
+            ktrain = kdescent.KPretrainer.from_training_data(
+                self.data_targets, self.data_weights,
+                num_eval_kernels=self.num_kernels,
+                num_eval_fourier_positions=self.num_fourier_positions,
+                num_pretrain_kernels=100*self.num_kernels,
+                num_pretrain_fourier_positions=100*self.num_fourier_positions,
+                bandwidth_factor=bandwidth_factor,
+                covariant_kernels=covariant_kernels,
+                comm=MPI.COMM_WORLD,
+            )
+            if not RANK:
+                ktrain.save(ktrain_fn)
+        if os.path.exists(mag_z_ktrain_fn):
+            mag_z_ktrain = kdescent.KPretrainer.load(mag_z_ktrain_fn)
+        else:
+            mag_z_ktrain = kdescent.KPretrainer.from_training_data(
+                self.data_targets[:, :2], self.data_weights,
+                num_eval_kernels=self.num_mag_z_kernels,
+                num_eval_fourier_positions=0,
+                num_pretrain_kernels=100*self.num_mag_z_kernels,
+                bandwidth_factor=bandwidth_factor,
+                covariant_kernels=covariant_kernels,
+                inverse_density_weight_power=self.kde_idw_power,
+                comm=MPI.COMM_WORLD,
+            )
+            if not RANK:
+                mag_z_ktrain.save(mag_z_ktrain_fn)
+        self.kcalc = kdescent.KCalc(ktrain)
+        self.mag_z_kcalc = kdescent.KCalc(mag_z_ktrain)
 
         # Account for volume difference between COSMOS and diffsky lightcone
         self.volume_factor_weight = COSMOS_SKY_AREA / self.sky_area_degsq

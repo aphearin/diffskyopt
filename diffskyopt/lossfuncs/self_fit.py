@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from functools import partial
 from mpi4py import MPI
@@ -60,12 +61,24 @@ class SelfFit:
         self.num_fourier_positions = num_fourier_positions
         covariant_kernels = False
         bandwidth_factor = 2.0
-        self.kcalc = kdescent.KCalc(
-            self.data_targets, self.data_weights,
-            num_kernels=self.num_kernels,
-            num_fourier_positions=self.num_fourier_positions,
-            covariant_kernels=covariant_kernels,
-            bandwidth_factor=bandwidth_factor)
+        ktrain_fn = (f"selftrain_nk{self.num_kernels}_"
+                     f"nf{self.num_fourier_positions}.npz")
+        if os.path.exists(ktrain_fn):
+            ktrain = kdescent.KPretrainer.load(ktrain_fn)
+        else:
+            ktrain = kdescent.KPretrainer.from_training_data(
+                self.data_targets, self.data_weights,
+                num_eval_kernels=self.num_kernels,
+                num_eval_fourier_positions=self.num_fourier_positions,
+                num_pretrain_kernels=100*self.num_kernels,
+                num_pretrain_fourier_positions=100*self.num_fourier_positions,
+                bandwidth_factor=bandwidth_factor,
+                covariant_kernels=covariant_kernels,
+                comm=MPI.COMM_WORLD,
+            )
+            if not RANK:
+                ktrain.save(ktrain_fn)
+        self.kcalc = kdescent.KCalc(ktrain)
 
         # Distribute lc_data and downsampled_lc_data across MPI ranks
         cut = jnp.array_split(
