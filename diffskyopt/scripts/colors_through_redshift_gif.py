@@ -84,6 +84,10 @@ def colors_gif(
         range_i = (quants[0] - dx, quants[1] + dx)
         ranges.append(range_i)
 
+    def make_levels(hist2d):
+        level_max = hist2d.max() / 3.0
+        return level_max / np.array([7.0, 1.0])
+
     def plot_slice(i):
         zlo, zhi = z_lows[i], z_highs[i]
         data_mask = (z_data >= zlo) & (z_data < zhi)
@@ -104,46 +108,50 @@ def colors_gif(
             data_alpha[data_alpha > 1] = 1
             model_alpha = 3000 * mw / mw.sum()
             model_alpha[model_alpha > 1] = 1
-            ax.scatter(
-                data_targets[data_mask, xidx], data_targets[data_mask, yidx],
-                color="C0", s=0.5, alpha=data_alpha)
-            ax.scatter(
-                model_targets[model_mask, xidx],
-                model_targets[model_mask, yidx],
-                color="C1", s=0.5,
-                alpha=model_alpha)
+            if data_mask.any():
+                ax.scatter(
+                    data_targets[data_mask, xidx],
+                    data_targets[data_mask, yidx],
+                    color="C0", s=0.5, alpha=data_alpha)
+            if model_mask.any():
+                ax.scatter(
+                    model_targets[model_mask, xidx],
+                    model_targets[model_mask, yidx],
+                    color="C1", s=0.5,
+                    alpha=model_alpha)
 
-            # 2D histogram for data
+            # 2D histogram for data and model
             xedges = np.linspace(*ranges[xidx], bins)
             yedges = np.linspace(*ranges[yidx], bins)
-            H_data, _, _ = np.histogram2d(
+            h_data, _, _ = np.histogram2d(
                 data_targets[data_mask, xidx], data_targets[data_mask, yidx],
                 bins=[xedges, yedges], weights=data_weights[data_mask])
-            level_max = H_data.max() / 3.0
-            levels = level_max / np.array([7.0, 1.0])
+            h_model, _, _ = np.histogram2d(
+                model_targets[model_mask, xidx],
+                model_targets[model_mask, yidx],
+                bins=[xedges, yedges], weights=model_weights[model_mask])
             X, Y = np.meshgrid(
                 0.5 * (xedges[:-1] + xedges[1:]),
                 0.5 * (yedges[:-1] + yedges[1:]))
-            if np.any(H_data > 0):
+
+            levels = make_levels(h_data)
+            if np.any(h_data > 0):
                 ax.contour(
-                    X, Y, H_data.T, levels=levels, colors="C0",
+                    X, Y, h_data.T, levels=levels, colors="C0",
                     linewidths=2, alpha=0.9, label="COSMOS")
-            # 2D histogram for model
-            H_model, _, _ = np.histogram2d(
-                model_targets[model_mask,
-                              xidx], model_targets[model_mask, yidx],
-                bins=[xedges, yedges], weights=model_weights[model_mask])
-            if np.any(H_model > 0):
+            else:
+                levels = make_levels(h_model)
+            if np.any(h_model > 0):
                 ax.contour(
-                    X, Y, H_model.T, levels=levels, colors="C1",
+                    X, Y, h_model.T, levels=levels, colors="C1",
                     linewidths=2, alpha=0.9, label="Model")
             ax.set_xlabel(labels[xidx], fontsize=16)
             ax.set_ylabel(labels[yidx], fontsize=16)
             ax.set_xlim(ranges[xidx])
             ax.set_ylim(ranges[yidx])
         fig.suptitle(
-            f"{title_prefix}$\\rm z = {(zlo+zhi)/2:.1f} \\pm {dz/2:.1f}$",
-            fontsize=24)
+            f"{title_prefix}$\\rm z = {(zlo+zhi)/2:.1f} \\pm {dz/2:.1f}$"
+            f", $\\rm m_i < {ithresh:.3g}$", fontsize=24)
         handles = [
             plt.Line2D([], [], color="C0", lw=4, label="COSMOS"),
             plt.Line2D([], [], color="C1", lw=4, label="Diffsky"),

@@ -157,7 +157,8 @@ class CosmosFit:
                                           min_weight=1e-3):
         # Target data is (N, 9): [i, g-r, r-i, i-z, z-y, Y-J, J-H, H-Z, photoz]
         # Y-band taken from both HSC and UVISTA => no cross-filter colors
-        mags = jnp.stack([cosmos[name] for name in FILTER_NAMES], axis=1)
+        mags = jnp.stack(jnp.array(
+            [cosmos[name] for name in FILTER_NAMES]), axis=1)
         colors = cosmos_mags_to_colors(mags)
         i_mag = mags[:, I_BAND_IND]
         photoz = cosmos["photoz"]

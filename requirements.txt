@@ -6,3 +6,4 @@ diffstarpop
 dsps
 diffsky
 diffopt
+cosmos20_colors

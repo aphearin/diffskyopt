@@ -115,8 +115,6 @@ class CosmosFit:
                 self.data_targets, self.data_weights,
                 num_eval_kernels=self.num_kernels,
                 num_eval_fourier_positions=self.num_fourier_positions,
-                num_pretrain_kernels=100*self.num_kernels,
-                num_pretrain_fourier_positions=100*self.num_fourier_positions,
                 bandwidth_factor=bandwidth_factor,
                 covariant_kernels=covariant_kernels,
                 comm=MPI.COMM_WORLD,
@@ -130,7 +128,6 @@ class CosmosFit:
                 self.data_targets[:, :2], self.data_weights,
                 num_eval_kernels=self.num_mag_z_kernels,
                 num_eval_fourier_positions=0,
-                num_pretrain_kernels=100*self.num_mag_z_kernels,
                 bandwidth_factor=bandwidth_factor,
                 covariant_kernels=covariant_kernels,
                 inverse_density_weight_power=self.kde_idw_power,
@@ -150,7 +147,8 @@ class CosmosFit:
                                           min_weight=1e-3):
         # Target data is (N, 9): [i, g-r, r-i, i-z, z-y, Y-J, J-H, H-Z, photoz]
         # Y-band taken from both HSC and UVISTA => no cross-filter colors
-        mags = jnp.stack([cosmos[name] for name in FILTER_NAMES], axis=1)
+        mags = jnp.stack(jnp.array(
+            [cosmos[name] for name in FILTER_NAMES]), axis=1)
         colors = cosmos_mags_to_colors(mags)
         i_mag = mags[:, I_BAND_IND]
         photoz = cosmos["photoz"]

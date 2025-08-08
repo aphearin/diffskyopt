@@ -21,12 +21,9 @@
 # run for a maximum of 23 hours
 #PBS -l walltime=23:00:00
 
-# module load gcc/13.2.0
-# module load mpich/4.2.0-gcc-13.2.0
-
 # Load software
 source ~/.bashrc
-conda activate main312
+conda activate /home/apearl/miniconda3/envs/main312
 
 cd $PBS_O_WORKDIR
 # export DIFFSKYOPT_EXPAND_ZRANGE_SSP_ERR=1
@@ -36,6 +33,7 @@ export DIFFSKYOPT_REMOVE_G_FILTER=1
 # Make plots in results/ from results.pbs and validation_plots.pbs as the results data becomes available before fitting the next epoch
 mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos -n 1000 -s 1 -l 0.4 -m 10.5 -a 1.0 -o cosmos_fit_results1.npz --kidw 0.5 --log-loss
 
+mkdir -p results
 cd results
 mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test --param-results ../cosmos_fit_results1.npz -s --prefix r1_ -m 10.5 -a 1.0 --skip-loss --skip-adam --kidw 0.5 --log-loss
 

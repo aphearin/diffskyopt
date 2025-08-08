@@ -214,6 +214,8 @@ def targets_corner_test(cosmos_fit, save=False, data_label="COSMOS",
                 axes[i, i].set_ylim(ymin, ymax)
 
             handles = [
+                plt.Line2D([], [], color="none", lw=0,
+                           label=f"$\\rm m_i < {ithresh:.3g}$"),
                 plt.Line2D([], [], color="C0", lw=4, label=data_label),
                 plt.Line2D([], [], color="C1", lw=4, label=model_label),
             ]
