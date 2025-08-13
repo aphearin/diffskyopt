@@ -54,11 +54,8 @@ parser.add_argument(
     "-a", "--sky-area-degsq", type=float, default=0.1,
     help="Sky area in square degrees for the mc lightcone")
 parser.add_argument(
-    "--num-z-grid", type=int, default=100,
-    help="Number of redshift grid points for the mc lightcone")
-parser.add_argument(
-    "--num-m-grid", type=int, default=100,
-    help="Number of lgmp grid points for the mc lightcone")
+    "--num-halos", type=int, default=5000,
+    help="Number of halos for the mc lightcone")
 parser.add_argument(
     "-k", "--num-kernels", type=int, default=40,
     help="Number of kernels for kdescent")
@@ -87,10 +84,9 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     cosmos_fit = CosmosFit(
+        num_halos=args.num_halos,
         i_thresh=args.iband_max,
         lgmp_min=args.lgmp_min,
-        num_z_grid=args.num_z_grid,
-        num_m_grid=args.num_m_grid,
         sky_area_degsq=args.sky_area_degsq,
         num_kernels=args.num_kernels,
         num_fourier_positions=args.num_fourier_positions,

@@ -1,9 +1,9 @@
 import os
-import numpy as np
 from dataclasses import dataclass
 from functools import partial
-from mpi4py import MPI
 
+from mpi4py import MPI
+import numpy as np
 import jax
 import jax.numpy as jnp
 
@@ -14,9 +14,8 @@ from cosmos20_colors import load_cosmos20
 from diffsky.param_utils import diffsky_param_wrapper as dpw
 
 from ..diffsky_model import (
-    generate_weighted_grid_lc_data,
+    generate_weighted_sobol_lc_data,
     compute_targets_and_weights,
-    lc_data_slice,
     cosmos_mags_to_colors,
     FILTER_NAMES,
     I_BAND_IND,
@@ -33,19 +32,18 @@ class CosmosFit:
     default_u_param_arr = dpw.unroll_u_param_collection_into_flat_array(
         *u_param_collection)
 
-    def __init__(self, zmin=0.4, zmax=2.0, num_z_grid=100,
-                 lgmp_min=10.5, lgmp_max=15.0, num_m_grid=100,
+    def __init__(self, num_halos=5000, zmin=0.4, zmax=2.0,
+                 lgmp_min=10.5, lgmp_max=15.0,
                  sky_area_degsq=COSMOS_SKY_AREA,
                  num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
                  hmf_calibration=None, log_loss=False, num_mag_z_kernels=20,
                  max_n_halos_per_bin=1000, n_halo_weight_bins=10,
                  kde_idw_power=0.0, seed=0):
+        self.num_halos = num_halos
         self.zmin = zmin
         self.zmax = zmax
-        self.num_z_grid = num_z_grid
         self.lgmp_min = lgmp_min
         self.lgmp_max = lgmp_max
-        self.num_m_grid = num_m_grid
         self.sky_area_degsq = sky_area_degsq
         self.num_kernels = num_kernels
         self.num_fourier_positions = num_fourier_positions
@@ -78,29 +76,11 @@ class CosmosFit:
         self.data_targets, self.data_weights = _res
 
         ran_keys = jax.random.split(jax.random.key(seed), 3)
-        if RANK == 0:
-            # Generate full lightcone data ONLY on rank 0
-            full_lc_data, full_halo_upweights = generate_weighted_grid_lc_data(
-                self.zmin, self.zmax, self.num_z_grid,
-                self.lgmp_min, self.lgmp_max, self.num_m_grid,
-                sky_area_degsq=self.sky_area_degsq, ran_key=ran_keys[0],
-                hmf_calibration=self.hmf_calibration)
-
-            # Split lightcone data ONLY on rank 0
-            indices = np.array_split(np.arange(full_lc_data.z_obs.size), SIZE)
-            lc_data_slices = [lc_data_slice(
-                full_lc_data, idx) for idx in indices]
-            halo_upweights_slices = [
-                full_halo_upweights[idx] for idx in indices]
-        else:
-            lc_data_slices = None
-            halo_upweights_slices = None
-
-        # Distribute lc_data and downsampled_lc_data across MPI ranks
-        self.lc_data = MPI.COMM_WORLD.scatter(
-            lc_data_slices, root=0)
-        self.halo_upweights = MPI.COMM_WORLD.scatter(
-            halo_upweights_slices, root=0)
+        self.lc_data = generate_weighted_sobol_lc_data(
+            self.num_halos, self.zmin, self.zmax, self.lgmp_min, self.lgmp_max,
+            sky_area_degsq=self.sky_area_degsq, ran_key=ran_keys[0],
+            hmf_calibration=self.hmf_calibration, comm=MPI.COMM_WORLD)
+        self.halo_upweights = self.lc_data.nhalos
 
         covariant_kernels = False
         bandwidth_factor = 2.0
