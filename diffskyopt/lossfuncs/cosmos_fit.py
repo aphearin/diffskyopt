@@ -86,7 +86,7 @@ class CosmosFit:
                  num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
                  hmf_calibration=None, log_loss=False, num_mag_z_kernels=20,
                  max_n_halos_per_bin=1000, n_halo_weight_bins=10,
-                 kde_idw_power=0.0, seed=0):
+                 kde_idw_power=0.0, seed=0, drn=COSMOS_DIR):
         self.num_halos = num_halos
         self.zmin = zmin
         self.zmax = zmax
@@ -104,8 +104,7 @@ class CosmosFit:
         self.kde_idw_power = kde_idw_power
 
         # --- Load and mask COSMOS data ---
-        os.environ["COSMOS20_DRN"] = COSMOS_DIR
-        cat = load_cosmos20()
+        cat = load_cosmos20(drn=drn)
 
         _, i_mag, redshift, colors, weights = load_target_data_and_cat(
             cat, self.zmin, self.zmax, self.i_thresh)
