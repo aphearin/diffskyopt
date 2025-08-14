@@ -2,23 +2,20 @@ import os
 from dataclasses import dataclass
 from functools import partial
 
-from mpi4py import MPI
-import numpy as np
 import jax
 import jax.numpy as jnp
-
-from diffopt import kdescent
-from diffopt import multigrad
-
+import numpy as np
 from cosmos20_colors import load_cosmos20
+from diffopt import kdescent, multigrad
 from diffsky.param_utils import diffsky_param_wrapper as dpw
+from mpi4py import MPI
 
 from ..diffsky_model import (
-    generate_weighted_sobol_lc_data,
-    compute_targets_and_weights,
-    cosmos_mags_to_colors,
     FILTER_NAMES,
     I_BAND_IND,
+    compute_targets_and_weights,
+    cosmos_mags_to_colors,
+    generate_weighted_sobol_lc_data,
 )
 
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
@@ -30,7 +27,8 @@ SIZE, RANK = MPI.COMM_WORLD.size, MPI.COMM_WORLD.rank
 
 
 def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
-                             thresh_softening=0.1, min_weight=1e-3):
+                             thresh_softening=0.1, min_weight=1e-3,
+                             filter_names=FILTER_NAMES):
     """
     Perform data-cleaning on the COSMOS catalog, removing NaNs, values
     outside of the redshift/i_mag range, and color outliers. Then, return
@@ -39,7 +37,7 @@ def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
 
     """
     # Mask out NaNs
-    nan_msk_keys = ("photoz", *FILTER_NAMES)
+    nan_msk_keys = ("photoz", *filter_names)
     msk_no_nan = np.ones(len(cat), dtype=bool)
     for key in nan_msk_keys:
         msk_no_nan &= ~np.isnan(np.array(cat[key]))
@@ -50,8 +48,8 @@ def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
     cosmos = cosmos[msk_redshift]
 
     mags = jnp.stack(jnp.array(
-        [cosmos[name] for name in FILTER_NAMES]), axis=1)
-    colors = cosmos_mags_to_colors(mags)
+        [cosmos[name] for name in filter_names]), axis=1)
+    colors = cosmos_mags_to_colors(mags, filter_names=filter_names)
     i_mag = np.array(mags[:, I_BAND_IND])
     redshift = np.array(cosmos["photoz"])
 
