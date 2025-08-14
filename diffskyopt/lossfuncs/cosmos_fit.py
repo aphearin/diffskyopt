@@ -31,10 +31,13 @@ SIZE, RANK = MPI.COMM_WORLD.size, MPI.COMM_WORLD.rank
 
 def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
                              thresh_softening=0.1, min_weight=1e-3):
-    # (cosmos, i_band_thresh=23.0, thresh_softening=0.1, min_weight=1e-3):
-    # Target data is (N, 9): [i, g-r, r-i, i-z, z-y, Y-J, J-H, H-Z, photoz]
-    # Y-band taken from both HSC and UVISTA => no cross-filter colors
+    """
+    Perform data-cleaning on the COSMOS catalog, removing NaNs, values
+    outside of the redshift/i_mag range, and color outliers. Then, return
+    the columns used to construct our kdescent targets, along with their
+    corresponding weights.
 
+    """
     # Mask out NaNs
     nan_msk_keys = ("photoz", *FILTER_NAMES)
     msk_no_nan = np.ones(len(cat), dtype=bool)
@@ -210,9 +213,6 @@ class CosmosFit:
             data_k = jnp.log10(data_k.real + eps)
             model_mz = jnp.log10(model_mz.real + eps)
             data_mz = jnp.log10(data_mz.real + eps)
-
-            # err_k = err_k / (data_k.real * np.log(10) + eps)
-            # err_mz = err_mz / (data_mz.real * np.log(10) + eps)
 
             # Use constant log errors so that fractional difference is
             # weighted evenly across high- and low-density regions of the PDF
