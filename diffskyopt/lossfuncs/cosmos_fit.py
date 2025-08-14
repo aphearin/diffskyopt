@@ -103,9 +103,8 @@ class CosmosFit:
         self.num_mag_z_kernels = num_mag_z_kernels
         self.kde_idw_power = kde_idw_power
 
-        # --- Load and mask COSMOS data ---
+        # Load COSMOS data and compile targets and weights arrays
         cat = load_cosmos20(drn=drn)
-
         _, i_mag, redshift, colors, weights = load_target_data_and_cat(
             cat, self.zmin, self.zmax, self.i_thresh)
         self.data_weights = weights
