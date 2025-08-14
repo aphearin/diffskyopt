@@ -1,7 +1,9 @@
 import os
 import pathlib
-import numpy as np
+import warnings
 
+from mpi4py import MPI
+import numpy as np
 import jax
 import jax.numpy as jnp
 
@@ -9,12 +11,22 @@ from dsps import load_ssp_templates
 from dsps.data_loaders.defaults import TransmissionCurve
 from dsps.data_loaders import load_transmission_curve
 from diffsky.experimental import lc_phot_kern
+from diffsky.experimental.lc_phot_kern import mclh
+from diffsky.experimental.mc_lightcone_halos import get_nhalo_weighted_lc_grid
 from diffsky.mass_functions.fitting_utils.calibrations \
     import hacc_core_shmf_params
+from diffmah.diffmahpop_kernels.mc_bimod_cens import mc_cenpop
+from diffmah.diffmah_kernels import _log_mah_kern
+from diffsky.mass_functions import mc_hosts
 from diffsky.mass_functions.hmf_calibrations import \
     smdpl_hmf_subs, smdpl_hmf
 from diffsky.ssp_err_model import ssp_err_model
+from diffmah.diffmahpop_kernels.bimod_censat_params import \
+    DEFAULT_DIFFMAHPOP_PARAMS
 from dsps.cosmology.defaults import DEFAULT_COSMOLOGY
+from dsps.cosmology import flat_wcdm
+
+from scipy.stats import qmc
 
 if os.environ.get("DIFFSKYOPT_EXPAND_ZRANGE_SSP_ERR"):
     ssp_err_model.Z_INTERP_ABSCISSA = jnp.array([0.6, 1.6])
@@ -22,6 +34,7 @@ if os.environ.get("DIFFSKYOPT_EXPAND_ZRANGE_SSP_ERR"):
 
 DATA_DIR = pathlib.Path("/lcrc/project/halotools/COSMOS/")
 FILTERS_DIR = pathlib.Path("/home/apearl/data/cosmos_filters/")
+
 ssp_files = [
     "ssp_data_fsps_v3.2_lgmet_age.h5",
     "ssp_data_continuum_fsps_v3.2_lgmet_age.h5",
@@ -36,15 +49,15 @@ if alt_ssp:
 else:
     SSP_FILE = ssp_files[0]
 FILTER_FILES = [
-    FILTERS_DIR / "g_HSC.txt",
-    FILTERS_DIR / "r_HSC.txt",
-    FILTERS_DIR / "i_HSC.txt",
-    FILTERS_DIR / "z_HSC.txt",
-    FILTERS_DIR / "y_HSC.txt",
-    FILTERS_DIR / "Y_uv.res",
-    FILTERS_DIR / "J_uv.res",
-    FILTERS_DIR / "H_uv.res",
-    FILTERS_DIR / "K_uv.res",
+    "g_HSC.txt",
+    "r_HSC.txt",
+    "i_HSC.txt",
+    "z_HSC.txt",
+    "y_HSC.txt",
+    "Y_uv.res",
+    "J_uv.res",
+    "H_uv.res",
+    "K_uv.res",
 ]
 
 FILTER_NAMES = [
@@ -60,7 +73,7 @@ FILTER_NAMES = [
 ]
 
 if os.environ.get("DIFFSKYOPT_REMOVE_G_FILTER"):
-    FILTER_FILES.remove(FILTERS_DIR / "g_HSC.txt")
+    FILTER_FILES.remove("g_HSC.txt")
     FILTER_NAMES.remove("HSC_g_MAG")
 
 I_BAND_IND = FILTER_NAMES.index("HSC_i_MAG")
@@ -109,7 +122,7 @@ def generate_lc_data_kern(
     else:
         assert hmf_calibration is None, f"Unrecognized {hmf_calibration=}"
 
-    lc_halopop = lc_phot_kern.mclh.mc_lightcone_host_halo_diffmah(
+    lc_halopop = mclh.mc_lightcone_host_halo_diffmah(
         *mclh_args, logmp_cutoff=logmp_cutoff, **mclh_kwargs)  # type: ignore
 
     t0 = lc_phot_kern.flat_wcdm.age_at_z0(*cosmo_params)
@@ -117,7 +130,7 @@ def generate_lc_data_kern(
                            t0, lc_phot_kern.N_SFH_TABLE)
 
     precomputed_ssp_mag_table = \
-        lc_phot_kern.mclh.get_precompute_ssp_mag_redshift_table(
+        mclh.get_precompute_ssp_mag_redshift_table(
             tcurves, ssp_data, z_phot_table
         )
     wave_eff_table = lc_phot_kern.get_wave_eff_table(z_phot_table, tcurves)
@@ -144,8 +157,9 @@ def generate_lc_data(z_min, z_max, lgmp_min, sky_area_degsq,
 
     ssp_data = load_ssp_templates(DATA_DIR / SSP_FILE)
 
+    ffiles = [FILTERS_DIR / fn for fn in FILTER_FILES]
     tcurves = [load_transmission_curve(fn) if str(fn).endswith(".h5") else
-               TransmissionCurve(*np.loadtxt(fn).T) for fn in FILTER_FILES]
+               TransmissionCurve(*np.loadtxt(fn).T) for fn in ffiles]
 
     z_phot_table = np.linspace(z_min, z_max, n_z_phot_table)
 
