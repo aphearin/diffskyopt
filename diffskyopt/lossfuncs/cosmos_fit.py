@@ -24,6 +24,7 @@ from ..diffsky_model import (
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
     *dpw.DEFAULT_PARAM_COLLECTION)
 COSMOS_SKY_AREA = 1.21
+COSMOS_DIR = "/lcrc/project/halotools/COSMOS/"
 
 SIZE, RANK = MPI.COMM_WORLD.size, MPI.COMM_WORLD.rank
 
@@ -56,7 +57,7 @@ class CosmosFit:
         self.kde_idw_power = kde_idw_power
 
         # --- Load and mask COSMOS data ---
-        os.environ["COSMOS20_DRN"] = "/lcrc/project/halotools/COSMOS/"
+        os.environ["COSMOS20_DRN"] = COSMOS_DIR
         cat = load_cosmos20()
 
         # Mask out NaNs
