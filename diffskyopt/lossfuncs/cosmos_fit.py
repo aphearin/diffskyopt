@@ -10,8 +10,10 @@ from diffopt import kdescent, multigrad
 from diffsky.param_utils import diffsky_param_wrapper as dpw
 from mpi4py import MPI
 
+from ..diffsky_model import DATA_DIR as COSMOS_DIR
 from ..diffsky_model import (
     FILTER_NAMES,
+    FILTERS_DIR,
     I_BAND_IND,
     compute_targets_and_weights,
     cosmos_mags_to_colors,
@@ -21,7 +23,6 @@ from ..diffsky_model import (
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
     *dpw.DEFAULT_PARAM_COLLECTION)
 COSMOS_SKY_AREA = 1.21
-COSMOS_DIR = "/lcrc/project/halotools/COSMOS/"
 
 SIZE, RANK = MPI.COMM_WORLD.size, MPI.COMM_WORLD.rank
 
@@ -84,7 +85,8 @@ class CosmosFit:
                  num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
                  hmf_calibration=None, log_loss=False, num_mag_z_kernels=20,
                  max_n_halos_per_bin=1000, n_halo_weight_bins=10,
-                 kde_idw_power=0.0, seed=0, drn=COSMOS_DIR):
+                 kde_idw_power=0.0, seed=0, drn_cosmos=COSMOS_DIR,
+                 drn_dsps=COSMOS_DIR, drn_filters=FILTERS_DIR):
         self.num_halos = num_halos
         self.zmin = zmin
         self.zmax = zmax
@@ -102,7 +104,7 @@ class CosmosFit:
         self.kde_idw_power = kde_idw_power
 
         # Load COSMOS data and compile targets and weights arrays
-        cat = load_cosmos20(drn=drn)
+        cat = load_cosmos20(drn=drn_cosmos)
         _, i_mag, redshift, colors, weights = load_target_data_and_cat(
             cat, self.zmin, self.zmax, self.i_thresh)
         self.data_weights = weights
@@ -112,7 +114,8 @@ class CosmosFit:
         self.lc_data = generate_weighted_sobol_lc_data(
             self.num_halos, self.zmin, self.zmax, self.lgmp_min, self.lgmp_max,
             sky_area_degsq=self.sky_area_degsq, ran_key=ran_keys[0],
-            hmf_calibration=self.hmf_calibration, comm=MPI.COMM_WORLD)
+            hmf_calibration=self.hmf_calibration, comm=MPI.COMM_WORLD,
+            drn_filters=drn_filters, drn_dsps=drn_dsps)
         self.halo_upweights = self.lc_data.nhalos
 
         covariant_kernels = False

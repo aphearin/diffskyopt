@@ -146,13 +146,13 @@ def generate_lc_data_kern(
 
 def generate_lc_data(z_min, z_max, lgmp_min, sky_area_degsq,
                      ran_key=None, n_z_phot_table=15, logmp_cutoff=0.0,
-                     hmf_calibration=None):
+                     hmf_calibration=None, drn_filters=FILTERS_DIR, drn_dsps=DATA_DIR):
     if ran_key is None:
         ran_key = jax.random.key(0)
 
-    ssp_data = load_ssp_templates(DATA_DIR / SSP_FILE)
+    ssp_data = load_ssp_templates(drn_dsps / SSP_FILE)
 
-    ffiles = [FILTERS_DIR / fn for fn in FILTER_FILES]
+    ffiles = [drn_filters / fn for fn in FILTER_FILES]
     tcurves = [load_transmission_curve(fn) if str(fn).endswith(".h5") else
                TransmissionCurve(*np.loadtxt(fn).T) for fn in ffiles]
 
@@ -298,7 +298,8 @@ def generate_weighted_sobol_lc_data(num_halos, z_min, z_max,
                                     lgmp_min, lgmp_max,
                                     sky_area_degsq, ran_key=None,
                                     n_z_phot_table=15, logmp_cutoff=0.0,
-                                    hmf_calibration=None, comm=None):
+                                    hmf_calibration=None, comm=None,
+                                    drn_filters=FILTERS_DIR, drn_dsps=DATA_DIR):
     if comm is None:
         comm = MPI.COMM_WORLD
     if ran_key is None:
@@ -329,9 +330,9 @@ def generate_weighted_sobol_lc_data(num_halos, z_min, z_max,
         z_obs, logmp_obs_mf = qmc.scale(
             sample, (z_min, lgmp_min), (z_max, lgmp_max)).T
 
-    ssp_data = load_ssp_templates(DATA_DIR / SSP_FILE)
+    ssp_data = load_ssp_templates(os.path.join(drn_dsps, SSP_FILE))
 
-    ffiles = [FILTERS_DIR / fn for fn in FILTER_FILES]
+    ffiles = [os.path.join(drn_filters, fn) for fn in FILTER_FILES]
     tcurves = [load_transmission_curve(fn) if str(fn).endswith(".h5") else
                TransmissionCurve(*np.loadtxt(fn).T) for fn in ffiles]
 
