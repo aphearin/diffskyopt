@@ -29,6 +29,50 @@ COSMOS_DIR = "/lcrc/project/halotools/COSMOS/"
 SIZE, RANK = MPI.COMM_WORLD.size, MPI.COMM_WORLD.rank
 
 
+def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
+                             thresh_softening=0.1, min_weight=1e-3):
+    # (cosmos, i_band_thresh=23.0, thresh_softening=0.1, min_weight=1e-3):
+    # Target data is (N, 9): [i, g-r, r-i, i-z, z-y, Y-J, J-H, H-Z, photoz]
+    # Y-band taken from both HSC and UVISTA => no cross-filter colors
+
+    # Mask out NaNs
+    nan_msk_keys = ("photoz", *FILTER_NAMES)
+    msk_no_nan = np.ones(len(cat), dtype=bool)
+    for key in nan_msk_keys:
+        msk_no_nan &= ~np.isnan(np.array(cat[key]))
+    cosmos = cat[msk_no_nan]
+
+    photoz_arr = np.array(cosmos["photoz"])
+    msk_redshift = (photoz_arr > z_min) & (photoz_arr < z_max)
+    cosmos = cosmos[msk_redshift]
+
+    mags = jnp.stack(jnp.array(
+        [cosmos[name] for name in FILTER_NAMES]), axis=1)
+    colors = cosmos_mags_to_colors(mags)
+    i_mag = np.array(mags[:, I_BAND_IND])
+    redshift = np.array(cosmos["photoz"])
+
+    weights = jax.nn.sigmoid(
+        # sigmoid weights instead of sharp i-band threshold
+        (i_band_thresh - i_mag) / thresh_softening)
+
+    msk_good_colors = np.ones(len(cosmos)).astype(bool)
+    for color in colors.T:
+        color_lo, color_hi = np.percentile(color, (0.5, 99.5))
+        msk_good_colors &= (color > color_lo) & (color < color_hi)
+
+    good_weights = weights > min_weight
+    full_mask = np.array(good_weights & msk_good_colors)
+
+    cosmos = cosmos[full_mask]
+    i_mag = i_mag[full_mask]
+    redshift = redshift[full_mask]
+    colors = colors[full_mask]
+
+    weights = jnp.array(weights[msk_good_colors & good_weights])
+    return cosmos, i_mag, redshift, colors, weights
+
+
 class CosmosFit:
     default_u_param_arr = dpw.unroll_u_param_collection_into_flat_array(
         *u_param_collection)
@@ -60,21 +104,10 @@ class CosmosFit:
         os.environ["COSMOS20_DRN"] = COSMOS_DIR
         cat = load_cosmos20()
 
-        # Mask out NaNs
-        nan_msk_keys = ("photoz", *FILTER_NAMES)
-        msk_no_nan = np.ones(len(cat), dtype=bool)
-        for key in nan_msk_keys:
-            msk_no_nan &= ~np.isnan(np.array(cat[key]))
-        cosmos = cat[msk_no_nan]
-
-        photoz_arr = np.array(cosmos["photoz"])
-        msk_redshift = (photoz_arr > self.zmin) & (photoz_arr < self.zmax)
-        cosmos = cosmos[msk_redshift]
-
-        # Prepare data targets
-        _res = self._prepare_data_targets_and_weights(
-            cosmos, i_band_thresh=self.i_thresh)
-        self.data_targets, self.data_weights = _res
+        _, i_mag, redshift, colors, weights = load_target_data_and_cat(
+            cat, self.zmin, self.zmax, self.i_thresh)
+        self.data_weights = weights
+        self.data_targets = np.stack([i_mag, redshift, *colors.T], axis=1)
 
         ran_keys = jax.random.split(jax.random.key(seed), 3)
         self.lc_data = generate_weighted_sobol_lc_data(
@@ -122,31 +155,6 @@ class CosmosFit:
         # Account for volume difference between COSMOS and diffsky lightcone
         self.volume_factor_weight = COSMOS_SKY_AREA / self.sky_area_degsq
         self.halo_upweights *= self.volume_factor_weight
-
-    def _prepare_data_targets_and_weights(self, cosmos, i_band_thresh=23.0,
-                                          thresh_softening=0.1,
-                                          min_weight=1e-3):
-        # Target data is (N, 9): [i, g-r, r-i, i-z, z-y, Y-J, J-H, H-Z, photoz]
-        # Y-band taken from both HSC and UVISTA => no cross-filter colors
-        mags = jnp.stack(jnp.array(
-            [cosmos[name] for name in FILTER_NAMES]), axis=1)
-        colors = cosmos_mags_to_colors(mags)
-        i_mag = mags[:, I_BAND_IND]
-        photoz = cosmos["photoz"]
-        targets = np.stack([i_mag, photoz, *colors.T], axis=1)
-        weights = jax.nn.sigmoid(
-            # sigmoid weights instead of sharp i-band threshold
-            (i_band_thresh - i_mag) / thresh_softening)
-
-        msk_good_colors = np.ones(len(cosmos)).astype(bool)
-        for color in colors.T:
-            color_lo, color_hi = np.percentile(color, (0.5, 99.5))
-            msk_good_colors &= (color > color_lo) & (color < color_hi)
-
-        good_weights = weights > min_weight
-        targets = jnp.array(targets[msk_good_colors & good_weights])
-        weights = jnp.array(weights[msk_good_colors & good_weights])
-        return targets, weights
 
     def get_multi_grad_calc(self):
         return self.MultiGradModel(aux_data=dict(
