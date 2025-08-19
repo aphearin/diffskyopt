@@ -81,10 +81,8 @@ class CosmosFit:
 
     def __init__(self, num_halos=5000, zmin=0.4, zmax=2.0,
                  lgmp_min=10.5, lgmp_max=15.0,
-                 sky_area_degsq=COSMOS_SKY_AREA,
                  num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
                  hmf_calibration=None, log_loss=False, num_mag_z_kernels=20,
-                 max_n_halos_per_bin=1000, n_halo_weight_bins=10,
                  kde_idw_power=0.0, seed=0, drn_cosmos=COSMOS_DIR,
                  drn_dsps=COSMOS_DIR, drn_filters=FILTERS_DIR):
         self.num_halos = num_halos
@@ -92,14 +90,12 @@ class CosmosFit:
         self.zmax = zmax
         self.lgmp_min = lgmp_min
         self.lgmp_max = lgmp_max
-        self.sky_area_degsq = sky_area_degsq
+        self.sky_area_degsq = COSMOS_SKY_AREA
         self.num_kernels = num_kernels
         self.num_fourier_positions = num_fourier_positions
         self.i_thresh = i_thresh
         self.hmf_calibration = hmf_calibration
         self.log_loss = log_loss
-        self.max_n_halos_per_bin = max_n_halos_per_bin
-        self.n_halo_weight_bins = n_halo_weight_bins
         self.num_mag_z_kernels = num_mag_z_kernels
         self.kde_idw_power = kde_idw_power
 

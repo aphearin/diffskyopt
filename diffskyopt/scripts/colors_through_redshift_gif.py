@@ -187,9 +187,6 @@ parser.add_argument(
     "-m", "--lgmp-min", type=float, default=10.5,
     help="Minimum lgmp value for mc lightcone")
 parser.add_argument(
-    "-a", "--sky-area-degsq", type=float, default=0.1,
-    help="Sky area in square degrees for the mc lightcone")
-parser.add_argument(
     "--num-halos", type=int, default=5000,
     help="Number of halos for the mc lightcone")
 parser.add_argument(
@@ -205,7 +202,6 @@ if __name__ == "__main__":
         num_halos=args.num_halos,
         i_thresh=args.iband_max,
         lgmp_min=args.lgmp_min,
-        sky_area_degsq=args.sky_area_degsq,
         hmf_calibration=args.hmf_calibration)
 
     model_params = None

@@ -393,9 +393,6 @@ parser.add_argument(
     "-m", "--lgmp-min", type=float, default=10.5,
     help="Minimum lgmp value for mc lightcone")
 parser.add_argument(
-    "-a", "--sky-area-degsq", type=float, default=0.1,
-    help="Sky area in square degrees for the mc lightcone")
-parser.add_argument(
     "--num-halos", type=int, default=5000,
     help="Number of halos for the mc lightcone")
 parser.add_argument(
@@ -438,12 +435,6 @@ parser.add_argument(
     "--log-loss", action="store_true",
     help="Perform logarithm on KDE counts for loss computation")
 parser.add_argument(
-    "--max-n-halos-per-bin", type=int, default=200,
-    help="Number of halos to select from each halo_upweight bin")
-parser.add_argument(
-    "--n-halo-weight-bins", type=int, default=50,
-    help="Number of Fourier evaluation positions for kdescent")
-parser.add_argument(
     "--kidw", type=float, default=0.0,
     help="Inverse density weighting for kdescent")
 
@@ -453,13 +444,10 @@ if __name__ == "__main__":
         num_halos=args.num_halos,
         i_thresh=args.iband_max,
         lgmp_min=args.lgmp_min,
-        sky_area_degsq=args.sky_area_degsq,
         num_kernels=args.num_kernels,
         num_fourier_positions=args.num_fourier_positions,
         hmf_calibration=args.hmf_calibration,
         log_loss=args.log_loss,
-        max_n_halos_per_bin=args.max_n_halos_per_bin,
-        n_halo_weight_bins=args.n_halo_weight_bins,
         num_mag_z_kernels=args.num_mag_z_kernels,
         kde_idw_power=args.kidw)
 

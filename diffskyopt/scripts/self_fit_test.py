@@ -166,9 +166,6 @@ parser.add_argument(
     "-m", "--lgmp-min", type=float, default=10.5,
     help="Minimum lgmp value for mc lightcone")
 parser.add_argument(
-    "-a", "--sky-area-degsq", type=float, default=0.01,
-    help="Sky area in square degrees for mc lightcone")
-parser.add_argument(
     "--num-z-grid", type=int, default=100,
     help="Number of redshift grid points for the mc lightcone")
 parser.add_argument(
@@ -200,7 +197,6 @@ if __name__ == "__main__":
         num_z_grid=args.num_z_grid,
         num_m_grid=args.num_m_grid,
         lgmp_min=args.lgmp_min,
-        sky_area_degsq=args.sky_area_degsq,
         num_kernels=args.num_kernels,
         num_fourier_positions=args.num_fourier_positions,
         hmf_calibration=args.hmf_calibration)

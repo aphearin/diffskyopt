@@ -6,13 +6,15 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from diffmah.diffmah_kernels import _log_mah_kern
-from diffmah.diffmahpop_kernels.bimod_censat_params import DEFAULT_DIFFMAHPOP_PARAMS
+from diffmah.diffmahpop_kernels.bimod_censat_params import \
+    DEFAULT_DIFFMAHPOP_PARAMS
 from diffmah.diffmahpop_kernels.mc_bimod_cens import mc_cenpop
 from diffsky.experimental import lc_phot_kern
 from diffsky.experimental.lc_phot_kern import mclh
 from diffsky.experimental.mc_lightcone_halos import get_nhalo_weighted_lc_grid
 from diffsky.mass_functions import mc_hosts
-from diffsky.mass_functions.fitting_utils.calibrations import hacc_core_shmf_params
+from diffsky.mass_functions.fitting_utils.calibrations import \
+    hacc_core_shmf_params
 from diffsky.mass_functions.hmf_calibrations import smdpl_hmf, smdpl_hmf_subs
 from diffsky.ssp_err_model import ssp_err_model
 from dsps import load_ssp_templates
@@ -146,7 +148,8 @@ def generate_lc_data_kern(
 
 def generate_lc_data(z_min, z_max, lgmp_min, sky_area_degsq,
                      ran_key=None, n_z_phot_table=15, logmp_cutoff=0.0,
-                     hmf_calibration=None, drn_filters=FILTERS_DIR, drn_dsps=DATA_DIR):
+                     hmf_calibration=None, drn_filters=FILTERS_DIR,
+                     drn_dsps=DATA_DIR):
     if ran_key is None:
         ran_key = jax.random.key(0)
 
@@ -299,7 +302,8 @@ def generate_weighted_sobol_lc_data(num_halos, z_min, z_max,
                                     sky_area_degsq, ran_key=None,
                                     n_z_phot_table=15, logmp_cutoff=0.0,
                                     hmf_calibration=None, comm=None,
-                                    drn_filters=FILTERS_DIR, drn_dsps=DATA_DIR):
+                                    drn_filters=FILTERS_DIR,
+                                    drn_dsps=DATA_DIR):
     if comm is None:
         comm = MPI.COMM_WORLD
     if ran_key is None:
