@@ -1,22 +1,17 @@
 import os
 from dataclasses import dataclass
 from functools import partial
-from mpi4py import MPI
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from diffopt import kdescent
-from diffopt import multigrad
-
+from diffopt import kdescent, multigrad
 from diffsky.param_utils import diffsky_param_wrapper as dpw
+from mpi4py import MPI
 
-from ..diffsky_model import (
-    generate_weighted_grid_lc_data,
-    compute_targets_and_weights,
-    lc_data_slice,
-)
+from ..diffsky_model import DATA_DIR as COSMOS_DIR
+from ..diffsky_model import (FILTERS_DIR, compute_targets_and_weights,
+                             generate_weighted_sobol_lc_data, lc_data_slice)
 from .cosmos_fit import COSMOS_SKY_AREA
 
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
@@ -29,27 +24,28 @@ class SelfFit:
     default_u_param_arr = dpw.unroll_u_param_collection_into_flat_array(
         *u_param_collection)
 
-    def __init__(self, zmin=0.4, zmax=2.0, num_z_grid=100,
-                 lgmp_min=10.5, lgmp_max=15.0, num_m_grid=100,
+    def __init__(self, num_halos=5000, zmin=0.4, zmax=2.0,
+                 lgmp_min=10.5, lgmp_max=15.0,
                  sky_area_degsq=COSMOS_SKY_AREA,
                  num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
-                 hmf_calibration=None, seed=0):
+                 hmf_calibration=None, seed=0,
+                 drn_dsps=COSMOS_DIR, drn_filters=FILTERS_DIR):
+        self.num_halos = num_halos
         self.zmin = zmin
         self.zmax = zmax
-        self.num_z_grid = num_z_grid
         self.lgmp_min = lgmp_min
         self.lgmp_max = lgmp_max
-        self.num_m_grid = num_m_grid
         self.sky_area_degsq = sky_area_degsq
         self.i_thresh = i_thresh
         self.hmf_calibration = hmf_calibration
         ran_keys = jax.random.split(jax.random.key(seed), 4)
 
-        self.lc_data, self.halo_upweights = generate_weighted_grid_lc_data(
-            self.zmin, self.zmax, self.num_z_grid,
-            self.lgmp_min, self.lgmp_max, self.num_m_grid,
+        self.lc_data = generate_weighted_sobol_lc_data(
+            self.num_halos, self.zmin, self.zmax, self.lgmp_min, self.lgmp_max,
             sky_area_degsq=self.sky_area_degsq, ran_key=ran_keys[0],
-            hmf_calibration=self.hmf_calibration)
+            hmf_calibration=self.hmf_calibration, comm=MPI.COMM_WORLD,
+            drn_filters=drn_filters, drn_dsps=drn_dsps)
+        self.halo_upweights = self.lc_data.nhalos
 
         _res = compute_targets_and_weights(
             self.default_u_param_arr, self.lc_data, ran_key=ran_keys[2],

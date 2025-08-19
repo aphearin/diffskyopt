@@ -1,17 +1,20 @@
 import argparse
+
 from mpi4py import MPI
 
 if not MPI.COMM_WORLD.rank:
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 
-import numpy as np
 import jax
-# import jax.numpy as jnp
+import numpy as np
 
+from .. import trange
 from ..lossfuncs.cosmos_fit import CosmosFit
 from .cosmos_fit_test import TARGET_LABELS
-from .. import trange
+
+# import jax.numpy as jnp
+
 
 ran_key = jax.random.key(1)
 

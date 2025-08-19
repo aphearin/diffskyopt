@@ -1,4 +1,5 @@
 import argparse
+
 from mpi4py import MPI
 
 if not MPI.COMM_WORLD.rank:
@@ -7,9 +8,8 @@ if not MPI.COMM_WORLD.rank:
 import jax
 import jax.numpy as jnp
 
-from ..lossfuncs.self_fit import SelfFit
 from .. import trange
-
+from ..lossfuncs.self_fit import SelfFit
 from .cosmos_fit_test import targets_corner_test
 
 ran_keys = jax.random.split(jax.random.key(1), 4)
@@ -166,11 +166,8 @@ parser.add_argument(
     "-m", "--lgmp-min", type=float, default=10.5,
     help="Minimum lgmp value for mc lightcone")
 parser.add_argument(
-    "--num-z-grid", type=int, default=100,
-    help="Number of redshift grid points for the mc lightcone")
-parser.add_argument(
-    "--num-m-grid", type=int, default=100,
-    help="Number of lgmp grid points for the mc lightcone")
+    "--num-halos", type=int, default=5000,
+    help="Number of halos for the mc lightcone")
 parser.add_argument(
     "-k", "--num-kernels", type=int, default=40,
     help="Number of kernels for kdescent")
@@ -193,9 +190,8 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     self_fit = SelfFit(
+        num_halos=args.num_halos,
         i_thresh=args.iband_max,
-        num_z_grid=args.num_z_grid,
-        num_m_grid=args.num_m_grid,
         lgmp_min=args.lgmp_min,
         num_kernels=args.num_kernels,
         num_fourier_positions=args.num_fourier_positions,

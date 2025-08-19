@@ -1,8 +1,8 @@
 import argparse
-from mpi4py import MPI
 
-import numpy as np
 import jax
+import numpy as np
+from mpi4py import MPI
 
 from ..lossfuncs.cosmos_fit import CosmosFit
 

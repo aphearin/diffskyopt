@@ -4,10 +4,13 @@ import jax.numpy as jnp
 
 class FakeModel:
     """
-    A model where parameters control the mean and covariance of a multivariate normal.
+    A model where parameters control the mean and covariance of a multivariate
+    normal.
     - The first num_outputs parameters are the means.
-    - The remaining parameters parameterize the lower-triangular matrix L of the Cholesky decomposition of the covariance matrix.
-      The diagonal entries of L are parameterized as exp(x) to ensure positivity.
+    - The remaining parameters parameterize the lower-triangular matrix L of
+      the Cholesky decomposition of the covariance matrix.
+      The diagonal entries of L are parameterized as exp(x) to ensure
+      positivity.
     """
 
     def __init__(self, num_outputs):

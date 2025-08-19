@@ -1,7 +1,8 @@
-import os
-import warnings
 import argparse
 import glob
+import os
+import warnings
+
 from mpi4py import MPI
 
 if not MPI.COMM_WORLD.rank:
@@ -9,12 +10,12 @@ if not MPI.COMM_WORLD.rank:
     import corner
     import seaborn
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 
-from ..lossfuncs.cosmos_fit import CosmosFit
 from .. import trange
+from ..lossfuncs.cosmos_fit import CosmosFit
 
 ran_keys = jax.random.split(jax.random.key(1), 4)
 keys = jax.random.split(ran_keys[3], 100)

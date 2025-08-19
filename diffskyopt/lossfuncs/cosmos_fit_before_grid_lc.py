@@ -1,27 +1,20 @@
 import os
-import numpy as np
 from dataclasses import dataclass
 from functools import partial
-from mpi4py import MPI
 
 import jax
 import jax.numpy as jnp
-
-from diffopt import kdescent
-from diffopt import multigrad
-
+import numpy as np
 from cosmos20_colors import load_cosmos20
+from diffopt import kdescent, multigrad
 from diffsky.param_utils import diffsky_param_wrapper as dpw
+from mpi4py import MPI
 
-from ..diffsky_model import (
-    generate_lc_data,
-    compute_targets_and_weights,
-    downsample_upweight_lc_data,
-    lc_data_slice,
-    cosmos_mags_to_colors,
-    FILTER_NAMES,
-    I_BAND_IND,
-)
+from ..diffsky_model import (FILTER_NAMES, I_BAND_IND,
+                             compute_targets_and_weights,
+                             cosmos_mags_to_colors,
+                             downsample_upweight_lc_data, generate_lc_data,
+                             lc_data_slice)
 
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
     *dpw.DEFAULT_PARAM_COLLECTION)

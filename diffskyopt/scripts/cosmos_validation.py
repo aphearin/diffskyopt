@@ -1,20 +1,21 @@
 import argparse
+
 from mpi4py import MPI
 
 if not MPI.COMM_WORLD.rank:
     import matplotlib.pyplot as plt
     from matplotlib.gridspec import GridSpec
 
-import numpy as np
 import jax
+import numpy as np
+from astropy import units
 # import jax.numpy as jnp
 from astropy.cosmology import Planck15
-from astropy import units
-
 from diffsky.experimental.diagnostics import check_smhm
 from diffsky.param_utils import diffsky_param_wrapper as dpw
 
 from ..lossfuncs.cosmos_fit import COSMOS_SKY_AREA, CosmosFit
+
 # from .. import trange
 
 ran_key = jax.random.key(1)

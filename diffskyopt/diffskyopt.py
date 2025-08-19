@@ -1,12 +1,8 @@
+from diffsky.param_utils import diffsky_param_wrapper as dpw
 from mpi4py import MPI
 
-from diffsky.param_utils import diffsky_param_wrapper as dpw  # noqa: F401
-
-from .diffsky_model import (  # noqa: F401
-    generate_lc_data,
-    downsample_upweight_lc_data,
-    compute_targets_and_weights,
-)
+from .diffsky_model import (compute_targets_and_weights,
+                            downsample_upweight_lc_data, generate_lc_data)
 
 
 def _not_trange(*args, desc=None, leave=None, **kwargs):
@@ -20,3 +16,12 @@ try:
     from tqdm.auto import trange
 except ImportError:
     trange = _not_trange
+
+
+__all__ = [
+    "dpw",
+    "compute_targets_and_weights",
+    "downsample_upweight_lc_data",
+    "generate_lc_data",
+    "trange",
+]

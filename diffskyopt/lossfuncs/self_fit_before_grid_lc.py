@@ -1,23 +1,17 @@
 import os
 from dataclasses import dataclass
 from functools import partial
-from mpi4py import MPI
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from diffopt import kdescent
-from diffopt import multigrad
-
+from diffopt import kdescent, multigrad
 from diffsky.param_utils import diffsky_param_wrapper as dpw
+from mpi4py import MPI
 
-from ..diffsky_model import (
-    generate_lc_data,
-    downsample_upweight_lc_data,
-    compute_targets_and_weights,
-    lc_data_slice,
-)
+from ..diffsky_model import (compute_targets_and_weights,
+                             downsample_upweight_lc_data, generate_lc_data,
+                             lc_data_slice)
 
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
     *dpw.DEFAULT_PARAM_COLLECTION)

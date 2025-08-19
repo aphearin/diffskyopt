@@ -11,14 +11,10 @@ from diffsky.param_utils import diffsky_param_wrapper as dpw
 from mpi4py import MPI
 
 from ..diffsky_model import DATA_DIR as COSMOS_DIR
-from ..diffsky_model import (
-    FILTER_NAMES,
-    FILTERS_DIR,
-    I_BAND_IND,
-    compute_targets_and_weights,
-    cosmos_mags_to_colors,
-    generate_weighted_sobol_lc_data,
-)
+from ..diffsky_model import (FILTER_NAMES, FILTERS_DIR, I_BAND_IND,
+                             compute_targets_and_weights,
+                             cosmos_mags_to_colors,
+                             generate_weighted_sobol_lc_data)
 
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
     *dpw.DEFAULT_PARAM_COLLECTION)
