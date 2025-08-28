@@ -19,7 +19,7 @@ def adam_fit(cosmos_fit, out, seed=1, nsteps=1000, u_param_init=None,
         u_param_init, nsteps=nsteps, learning_rate=learning_rate,
         randkey=key, progress=progress)
 
-    if not MPI.COMM_WORLD.rank:
+    if not MPI.COMM_WORLD.rank and out is not None:
         np.savez(
             out,
             params=np.asarray(params),
