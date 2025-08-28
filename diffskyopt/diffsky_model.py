@@ -329,10 +329,10 @@ def generate_weighted_sobol_lc_data(num_halos, z_min, z_max,
     with warnings.catch_warnings():
         # Ignore warning about Sobol sequences not being fully balanced
         warnings.filterwarnings(
-            "ignore", category=UserWarning, module="scipy.stats")
+            "ignore", category=UserWarning)
         sample = sampler.random(num_halos_on_rank)
-        z_obs, logmp_obs_mf = qmc.scale(
-            sample, (z_min, lgmp_min), (z_max, lgmp_max)).T
+    z_obs, logmp_obs_mf = qmc.scale(
+        sample, (z_min, lgmp_min), (z_max, lgmp_max)).T
 
     ssp_data = load_ssp_templates(os.path.join(drn_dsps, SSP_FILE))
 
