@@ -23,7 +23,7 @@
 
 # Load software
 source ~/.bashrc
-conda activate /home/apearl/miniconda3/envs/main312
+conda activate /lcrc/project/halotools/apearl/miniconda3/envs/main312
 
 cd $PBS_O_WORKDIR
 # export DIFFSKYOPT_EXPAND_ZRANGE_SSP_ERR=1
@@ -55,6 +55,7 @@ mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to
 cd results
 mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test --param-results ../cosmos_fit_results4.npz -s --prefix r4_ -m 10.5 --skip-loss --skip-adam --log-loss
 mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test --loss-results "../cosmos_fit_results*.npz" -s -m 10.5 --skip-corner --skip-loss --skip-adam --log-loss
+mpiexec -n 4 $watchmemory python -m diffskyopt.scripts.cosmos_fit_test --loss-results "../cosmos_fit_results*.npz" -s -m 10.5 --skip-corner --skip-loss --skip-adam --log-loss --recompute-loss-results -k 150 -f 0 --num-mag-z-kernels 200 --kidw 0.5 --prefix "rerun_"
 
 # 1D validation plots + color-colors GIF stepping through redshift
 mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_validation --param-results ../cosmos_fit_results4.npz -s
