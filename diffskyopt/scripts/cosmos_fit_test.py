@@ -457,7 +457,7 @@ if __name__ == "__main__":
         model_params = np.load(args.param_results)["params"][-1]
 
     if args.loss_results is not None:
-        result_files = glob.glob(args.loss_results)
+        result_files = sorted(glob.glob(args.loss_results))
         loss_results_plot(
             cosmos_fit, result_files, save=args.save,
             recompute_loss=args.recompute_loss_results,
