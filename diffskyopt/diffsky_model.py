@@ -16,7 +16,6 @@ from diffsky.mass_functions import mc_hosts
 from diffsky.mass_functions.fitting_utils.calibrations import \
     hacc_core_shmf_params
 from diffsky.mass_functions.hmf_calibrations import smdpl_hmf, smdpl_hmf_subs
-from diffsky.ssp_err_model import ssp_err_model
 from dsps import load_ssp_templates
 from dsps.cosmology import flat_wcdm
 from dsps.cosmology.defaults import DEFAULT_COSMOLOGY
@@ -25,12 +24,12 @@ from dsps.data_loaders.defaults import TransmissionCurve
 from mpi4py import MPI
 from scipy.stats import qmc
 
-if os.environ.get("DIFFSKYOPT_EXPAND_ZRANGE_SSP_ERR"):
-    ssp_err_model.Z_INTERP_ABSCISSA = jnp.array([0.6, 1.6])
-    # default = jnp.array([0.5, 0.75])
-
-DATA_DIR = pathlib.Path("/lcrc/project/halotools/COSMOS/")
-FILTERS_DIR = pathlib.Path("/home/apearl/data/cosmos_filters/")
+DATA_DIR = os.environ.get("DIFFSKYOPT_COSMOS_DIR",
+                          "/lcrc/project/halotools/COSMOS/")
+FILTERS_DIR = os.environ.get("DIFFSKYOPT_FILTERS_DIR",
+                             "/home/apearl/data/cosmos_filters/")
+DATA_DIR = pathlib.Path(DATA_DIR)
+FILTERS_DIR = pathlib.Path(FILTERS_DIR)
 
 ssp_files = [
     "ssp_data_fsps_v3.2_lgmet_age.h5",
