@@ -8,7 +8,7 @@
 #PBS -A halotools
 # #PBS -A galsampler
 
-# queue name 
+# queue name
 # - Improv options: compute [default], bigmem
 # - Bebop only option: bdwall [default]
 # #PBS -q bigmem
@@ -22,8 +22,8 @@
 #PBS -l walltime=23:00:00
 
 # Load software
-source ~/.bashrc
-conda activate /lcrc/project/halotools/apearl/miniconda3/envs/main312
+source ~/.bash_profile
+conda activate diffskyopt312
 
 cd $PBS_O_WORKDIR
 # export DIFFSKYOPT_EXPAND_ZRANGE_SSP_ERR=1
