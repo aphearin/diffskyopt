@@ -9,6 +9,7 @@ from diffmah.diffmah_kernels import _log_mah_kern
 from diffmah.diffmahpop_kernels.bimod_censat_params import DEFAULT_DIFFMAHPOP_PARAMS
 from diffmah.diffmahpop_kernels.mc_bimod_cens import mc_cenpop
 from diffsky.experimental import lc_phot_kern
+from diffsky.experimental import precompute_ssp_phot as psspp
 from diffsky.experimental.lc_phot_kern import mclh
 from diffsky.experimental.mc_lightcone_halos import get_nhalo_weighted_lc_grid
 from diffsky.mass_functions import mc_hosts
@@ -123,7 +124,7 @@ def generate_lc_data_kern(
     t0 = lc_phot_kern.flat_wcdm.age_at_z0(*cosmo_params)
     t_table = jnp.linspace(lc_phot_kern.T_TABLE_MIN, t0, lc_phot_kern.N_SFH_TABLE)
 
-    precomputed_ssp_mag_table = mclh.get_precompute_ssp_mag_redshift_table(
+    precomputed_ssp_mag_table = psspp.get_precompute_ssp_mag_redshift_table(
         tcurves, ssp_data, z_phot_table
     )
     wave_eff_table = lc_phot_kern.get_wave_eff_table(z_phot_table, tcurves)
@@ -421,7 +422,7 @@ def generate_weighted_sobol_lc_data(
     t0 = lc_phot_kern.flat_wcdm.age_at_z0(*DEFAULT_COSMOLOGY)
     t_table = jnp.linspace(lc_phot_kern.T_TABLE_MIN, t0, lc_phot_kern.N_SFH_TABLE)
 
-    precomputed_ssp_mag_table = mclh.get_precompute_ssp_mag_redshift_table(
+    precomputed_ssp_mag_table = psspp.get_precompute_ssp_mag_redshift_table(
         tcurves, ssp_data, z_phot_table
     )
     wave_eff_table = lc_phot_kern.get_wave_eff_table(z_phot_table, tcurves)
