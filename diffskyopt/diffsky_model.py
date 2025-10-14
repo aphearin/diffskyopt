@@ -125,7 +125,7 @@ def generate_lc_data_kern(
     t_table = jnp.linspace(lc_phot_kern.T_TABLE_MIN, t0, lc_phot_kern.N_SFH_TABLE)
 
     precomputed_ssp_mag_table = psspp.get_precompute_ssp_mag_redshift_table(
-        tcurves, ssp_data, z_phot_table
+        tcurves, ssp_data, z_phot_table, cosmo_params
     )
     wave_eff_table = lc_phot_kern.get_wave_eff_table(z_phot_table, tcurves)
 
@@ -349,6 +349,7 @@ def generate_weighted_sobol_lc_data(
     comm=None,
     drn_filters=FILTERS_DIR,
     drn_dsps=DATA_DIR,
+    cosmo_params=DEFAULT_COSMOLOGY,
 ):
     if comm is None:
         comm = MPI.COMM_WORLD
@@ -423,7 +424,7 @@ def generate_weighted_sobol_lc_data(
     t_table = jnp.linspace(lc_phot_kern.T_TABLE_MIN, t0, lc_phot_kern.N_SFH_TABLE)
 
     precomputed_ssp_mag_table = psspp.get_precompute_ssp_mag_redshift_table(
-        tcurves, ssp_data, z_phot_table
+        tcurves, ssp_data, z_phot_table, cosmo_params
     )
     wave_eff_table = lc_phot_kern.get_wave_eff_table(z_phot_table, tcurves)
 
