@@ -31,32 +31,32 @@ export DIFFSKYOPT_REMOVE_G_FILTER=1
 
 # Run python script with Nnodes * nprocs
 # Make plots in results/ from results.pbs and validation_plots.pbs as the results data becomes available before fitting the next epoch
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh tng -n 1000 -s 1 -l 0.4 -m 10.5 -o cosmos_fit_results1.npz --kidw 0.5 --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh smdpl_dr1 -n 1000 -s 1 -l 0.4 -m 10.5 -o cosmos_fit_results1.npz --kidw 0.5 --log-loss
 
 mkdir -p results
 cd results
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh tng --param-results ../cosmos_fit_results1.npz -s --prefix r1_ -m 10.5 --skip-loss --skip-adam --kidw 0.5 --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh smdpl_dr1 --param-results ../cosmos_fit_results1.npz -s --prefix r1_ -m 10.5 --skip-loss --skip-adam --kidw 0.5 --log-loss
 
 cd ..
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh tng -n 1000 -s 1 -l 0.4 -m 10.5 -o cosmos_fit_results2.npz -i cosmos_fit_results1.npz -k 100 --num-mag-z-kernels 100 --kidw 0.5 --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh smdpl_dr1 -n 1000 -s 1 -l 0.4 -m 10.5 -o cosmos_fit_results2.npz -i cosmos_fit_results1.npz -k 100 --num-mag-z-kernels 100 --kidw 0.5 --log-loss
 
 cd results
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh tng --param-results ../cosmos_fit_results2.npz -s --prefix r2_ -m 10.5 --skip-loss --skip-adam --kidw 0.5 --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh smdpl_dr1 --param-results ../cosmos_fit_results2.npz -s --prefix r2_ -m 10.5 --skip-loss --skip-adam --kidw 0.5 --log-loss
 
 cd ..
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh tng -n 1000 -s 1 -l 0.4 -m 10.5 -o cosmos_fit_results3.npz -i cosmos_fit_results2.npz -k 150 -f 0 --num-mag-z-kernels 200 --kidw 0.5 --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh smdpl_dr1 -n 1000 -s 1 -l 0.4 -m 10.5 -o cosmos_fit_results3.npz -i cosmos_fit_results2.npz -k 150 -f 0 --num-mag-z-kernels 200 --kidw 0.5 --log-loss
 
 cd results
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh tng --param-results ../cosmos_fit_results3.npz -s --prefix r3_ -m 10.5 --skip-loss --skip-adam --kidw 0.5 --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh smdpl_dr1 --param-results ../cosmos_fit_results3.npz -s --prefix r3_ -m 10.5 --skip-loss --skip-adam --kidw 0.5 --log-loss
 
 cd ..
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh tng -n 1000 -s 1 -l 0.05 -m 10.5 -o cosmos_fit_results4.npz -i cosmos_fit_results3.npz -k 150 -f 0 --num-mag-z-kernels 200 --kidw 0.5 --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.kdescent_fit_to_cosmos_fixed_sfh smdpl_dr1 -n 1000 -s 1 -l 0.05 -m 10.5 -o cosmos_fit_results4.npz -i cosmos_fit_results3.npz -k 150 -f 0 --num-mag-z-kernels 200 --kidw 0.5 --log-loss
 
 cd results
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh tng --param-results ../cosmos_fit_results4.npz -s --prefix r4_ -m 10.5 --skip-loss --skip-adam --log-loss
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh tng --loss-results "../cosmos_fit_results*.npz" -s -m 10.5 --skip-corner --skip-loss --skip-adam --log-loss
-mpiexec -n 4 $watchmemory python -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh tng --loss-results "../cosmos_fit_results*.npz" -s -m 10.5 --skip-corner --skip-loss --skip-adam --log-loss --recompute-loss-results -k 150 -f 0 --num-mag-z-kernels 200 --kidw 0.5 --prefix "rerun_"
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh smdpl_dr1 --param-results ../cosmos_fit_results4.npz -s --prefix r4_ -m 10.5 --skip-loss --skip-adam --log-loss
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh smdpl_dr1 --loss-results "../cosmos_fit_results*.npz" -s -m 10.5 --skip-corner --skip-loss --skip-adam --log-loss
+mpiexec -n 4 $watchmemory python -m diffskyopt.scripts.cosmos_fit_test_fixed_sfh smdpl_dr1 --loss-results "../cosmos_fit_results*.npz" -s -m 10.5 --skip-corner --skip-loss --skip-adam --log-loss --recompute-loss-results -k 150 -f 0 --num-mag-z-kernels 200 --kidw 0.5 --prefix "rerun_"
 
 # 1D validation plots + color-colors GIF stepping through redshift
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_validation_fixed_sfh tng --param-results ../cosmos_fit_results4.npz -s
-mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.colors_through_redshift_gif_fixed_sfh tng --param-results ../cosmos_fit_results4.npz
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.cosmos_validation_fixed_sfh smdpl_dr1 --param-results ../cosmos_fit_results4.npz -s
+mpiexec -n 4 $watchmemory python -W ignore -m diffskyopt.scripts.colors_through_redshift_gif_fixed_sfh smdpl_dr1 --param-results ../cosmos_fit_results4.npz
