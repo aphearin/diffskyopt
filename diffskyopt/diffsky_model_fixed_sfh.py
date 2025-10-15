@@ -454,7 +454,7 @@ def compute_targets_and_weights(
     fixed_diffstarpop_params=(),
 ):
     # For mag bands = g, r, i, z -> i_band_ind = 2
-
+    fixed_diffstarpop_params = jnp.array(fixed_diffstarpop_params)
     u_param_arr = jnp.concatenate((fixed_diffstarpop_params, u_param_arr))
 
     if ran_key is None:

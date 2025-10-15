@@ -113,7 +113,7 @@ class CosmosFit:
         drn_dsps=COSMOS_DIR,
         drn_filters=FILTERS_DIR,
     ):
-        self.fixed_diffstarpop_params = sfh_param_dict[sfh_model]
+        self.fixed_diffstarpop_params = jnp.array(sfh_param_dict[sfh_model])
         self.num_halos = num_halos
         self.zmin = zmin
         self.zmax = zmax
