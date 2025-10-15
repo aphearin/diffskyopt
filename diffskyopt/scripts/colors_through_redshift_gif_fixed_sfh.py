@@ -222,6 +222,18 @@ parser = argparse.ArgumentParser(
     description="Validate model vs COSMOS data with n(z) and n(<m_i)"
 )
 parser.add_argument(
+    "sfh_model",
+    type=str,
+    help="SFH model nickname",
+    choices=(
+        "smdpl_dr1_nomerging",
+        "smdpl_dr1",
+        "tng",
+        "galacticus_in_situ",
+        "galacticus_in_plus_ex_situ",
+    ),
+)
+parser.add_argument(
     "--prefix",
     type=str,
     default="",
