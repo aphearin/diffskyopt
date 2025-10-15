@@ -11,21 +11,32 @@ from diffsky.param_utils import diffsky_param_wrapper as dpw
 from mpi4py import MPI
 
 from ..diffsky_model import DATA_DIR as COSMOS_DIR
-from ..diffsky_model import (FILTER_NAMES, FILTERS_DIR, I_BAND_IND,
-                             compute_targets_and_weights,
-                             cosmos_mags_to_colors,
-                             generate_weighted_sobol_lc_data)
+from ..diffsky_model import (
+    FILTER_NAMES,
+    FILTERS_DIR,
+    I_BAND_IND,
+    compute_targets_and_weights,
+    cosmos_mags_to_colors,
+    generate_weighted_sobol_lc_data,
+)
 
 u_param_collection = dpw.get_u_param_collection_from_param_collection(
-    *dpw.DEFAULT_PARAM_COLLECTION)
+    *dpw.DEFAULT_PARAM_COLLECTION
+)
 COSMOS_SKY_AREA = 1.21
 
 SIZE, RANK = MPI.COMM_WORLD.size, MPI.COMM_WORLD.rank
 
 
-def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
-                             thresh_softening=0.1, min_weight=1e-3,
-                             filter_names=FILTER_NAMES):
+def load_target_data_and_cat(
+    cat,
+    z_min,
+    z_max,
+    i_band_thresh,
+    thresh_softening=0.1,
+    min_weight=1e-3,
+    filter_names=FILTER_NAMES,
+):
     """
     Perform data-cleaning on the COSMOS catalog, removing NaNs, values
     outside of the redshift/i_mag range, and color outliers. Then, return
@@ -44,15 +55,16 @@ def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
     msk_redshift = (photoz_arr > z_min) & (photoz_arr < z_max)
     cosmos = cosmos[msk_redshift]
 
-    mags = jnp.stack(jnp.array(
-        [cosmos[name] for name in filter_names]), axis=1)
+    mags = jnp.stack(jnp.array([cosmos[name] for name in filter_names]), axis=1)
     colors = cosmos_mags_to_colors(mags, filter_names=filter_names)
     i_mag = np.array(mags[:, I_BAND_IND])
     redshift = np.array(cosmos["photoz"])
 
     weights = jax.nn.sigmoid(
         # sigmoid weights instead of sharp i-band threshold
-        (i_band_thresh - i_mag) / thresh_softening)
+        (i_band_thresh - i_mag)
+        / thresh_softening
+    )
 
     msk_good_colors = np.ones(len(cosmos)).astype(bool)
     for color in colors.T:
@@ -73,14 +85,28 @@ def load_target_data_and_cat(cat, z_min, z_max, i_band_thresh,
 
 class CosmosFit:
     default_u_param_arr = dpw.unroll_u_param_collection_into_flat_array(
-        *u_param_collection)
+        *u_param_collection
+    )
 
-    def __init__(self, num_halos=5000, zmin=0.4, zmax=2.0,
-                 lgmp_min=10.5, lgmp_max=15.0,
-                 num_kernels=40, num_fourier_positions=20, i_thresh=25.0,
-                 hmf_calibration=None, log_loss=False, num_mag_z_kernels=20,
-                 kde_idw_power=0.0, seed=0, drn_cosmos=COSMOS_DIR,
-                 drn_dsps=COSMOS_DIR, drn_filters=FILTERS_DIR):
+    def __init__(
+        self,
+        num_halos=5000,
+        zmin=0.4,
+        zmax=2.0,
+        lgmp_min=10.5,
+        lgmp_max=15.0,
+        num_kernels=40,
+        num_fourier_positions=20,
+        i_thresh=25.0,
+        hmf_calibration=None,
+        log_loss=False,
+        num_mag_z_kernels=20,
+        kde_idw_power=0.0,
+        seed=0,
+        drn_cosmos=COSMOS_DIR,
+        drn_dsps=COSMOS_DIR,
+        drn_filters=FILTERS_DIR,
+    ):
         self.num_halos = num_halos
         self.zmin = zmin
         self.zmax = zmax
@@ -98,29 +124,42 @@ class CosmosFit:
         # Load COSMOS data and compile targets and weights arrays
         cat = load_cosmos20(drn=drn_cosmos)
         _, i_mag, redshift, colors, weights = load_target_data_and_cat(
-            cat, self.zmin, self.zmax, self.i_thresh)
+            cat, self.zmin, self.zmax, self.i_thresh
+        )
         self.data_weights = weights
         self.data_targets = np.stack([i_mag, redshift, *colors.T], axis=1)
 
         ran_keys = jax.random.split(jax.random.key(seed), 3)
         self.lc_data = generate_weighted_sobol_lc_data(
-            self.num_halos, self.zmin, self.zmax, self.lgmp_min, self.lgmp_max,
-            sky_area_degsq=self.sky_area_degsq, ran_key=ran_keys[0],
-            hmf_calibration=self.hmf_calibration, comm=MPI.COMM_WORLD,
-            drn_filters=drn_filters, drn_dsps=drn_dsps)
+            self.num_halos,
+            self.zmin,
+            self.zmax,
+            self.lgmp_min,
+            self.lgmp_max,
+            sky_area_degsq=self.sky_area_degsq,
+            ran_key=ran_keys[0],
+            hmf_calibration=self.hmf_calibration,
+            comm=MPI.COMM_WORLD,
+            drn_filters=drn_filters,
+            drn_dsps=drn_dsps,
+        )
         self.halo_upweights = self.lc_data.nhalos
 
         covariant_kernels = False
         bandwidth_factor = 2.0
-        ktrain_fn = (f"ktrain_nk{self.num_kernels}_"
-                     f"nf{self.num_fourier_positions}.npz")
-        mag_z_ktrain_fn = (f"mag_z_ktrain_nk{self.num_mag_z_kernels}_"
-                           f"idwp{self.kde_idw_power:.2g}.npz")
+        ktrain_fn = (
+            f"ktrain_nk{self.num_kernels}_" f"nf{self.num_fourier_positions}.npz"
+        )
+        mag_z_ktrain_fn = (
+            f"mag_z_ktrain_nk{self.num_mag_z_kernels}_"
+            f"idwp{self.kde_idw_power:.2g}.npz"
+        )
         if os.path.exists(ktrain_fn):
             ktrain = kdescent.KPretrainer.load(ktrain_fn)
         else:
             ktrain = kdescent.KPretrainer.from_training_data(
-                self.data_targets, self.data_weights,
+                self.data_targets,
+                self.data_weights,
                 num_eval_kernels=self.num_kernels,
                 num_eval_fourier_positions=self.num_fourier_positions,
                 bandwidth_factor=bandwidth_factor,
@@ -133,7 +172,8 @@ class CosmosFit:
             mag_z_ktrain = kdescent.KPretrainer.load(mag_z_ktrain_fn)
         else:
             mag_z_ktrain = kdescent.KPretrainer.from_training_data(
-                self.data_targets[:, :2], self.data_weights,
+                self.data_targets[:, :2],
+                self.data_weights,
                 num_eval_kernels=self.num_mag_z_kernels,
                 num_eval_fourier_positions=0,
                 bandwidth_factor=bandwidth_factor,
@@ -151,40 +191,43 @@ class CosmosFit:
         self.halo_upweights *= self.volume_factor_weight
 
     def get_multi_grad_calc(self):
-        return self.MultiGradModel(aux_data=dict(
-            fit_instance=self))
+        return self.MultiGradModel(aux_data=dict(fit_instance=self))
 
     @partial(jax.jit, static_argnums=[0])
     def targets_and_weights_from_params(self, params, randkey):
         # Each rank must have a UNIQUE key to compute photometry
         targets, weights = compute_targets_and_weights(
-            params, self.lc_data,
+            params,
+            self.lc_data,
             ran_key=jax.random.split(randkey, SIZE)[RANK],
-            weights=self.halo_upweights, i_band_thresh=self.i_thresh)
+            weights=self.halo_upweights,
+            i_band_thresh=self.i_thresh,
+        )
 
         return targets, weights
 
     @partial(jax.jit, static_argnums=[0])
     def sumstats_from_params(self, params, randkey):
         keys = jax.random.split(randkey, 4)
-        _res = self.targets_and_weights_from_params(
-            params, keys[0])
+        _res = self.targets_and_weights_from_params(params, keys[0])
         model_targets, model_weights = _res
 
         # Each rank must have the SAME randkey in kdescent
         model_k, data_k, err_k = self.kcalc.compare_kde_counts(
-            keys[1], model_targets, model_weights, return_err=True)
+            keys[1], model_targets, model_weights, return_err=True
+        )
         model_f, data_f, err_f = self.kcalc.compare_fourier_counts(
-            keys[2], model_targets, model_weights, return_err=True)
+            keys[2], model_targets, model_weights, return_err=True
+        )
         model_mz, data_mz, err_mz = self.mag_z_kcalc.compare_kde_counts(
-            keys[3], model_targets[:, :2], model_weights, return_err=True)
+            keys[3], model_targets[:, :2], model_weights, return_err=True
+        )
 
         # Summed over ranks
         sumstats = jnp.concatenate([model_k, model_f, model_mz])
 
         # Not summed over ranks
-        sumstats_aux = jnp.concatenate([
-            data_k, err_k, data_f, err_f, data_mz, err_mz])
+        sumstats_aux = jnp.concatenate([data_k, err_k, data_f, err_f, data_mz, err_mz])
 
         return sumstats, sumstats_aux
 
@@ -193,10 +236,10 @@ class CosmosFit:
         nk = self.num_kernels
         nf = self.num_fourier_positions
         nmz = self.num_mag_z_kernels
-        model_k, model_f, model_mz = jnp.split(
-            sumstats, np.cumsum([nk, nf]))
+        model_k, model_f, model_mz = jnp.split(sumstats, np.cumsum([nk, nf]))
         data_k, err_k, data_f, err_f, data_mz, err_mz = jnp.split(
-            sumstats_aux, np.cumsum([nk, nk, nf, nf, nmz]))
+            sumstats_aux, np.cumsum([nk, nk, nf, nf, nmz])
+        )
 
         if self.log_loss:
             eps = 1e-10
@@ -211,12 +254,14 @@ class CosmosFit:
 
             # Don't take log of Fourier counts
 
-        normalized_residuals = jnp.concatenate([
-            (model_k.real - data_k.real) / err_k.real,
-            (model_f.real - data_f.real) / err_f.real,
-            (model_f.imag - data_f.imag) / err_f.imag,
-            (model_mz.real - data_mz.real) / err_mz.real,
-        ])
+        normalized_residuals = jnp.concatenate(
+            [
+                (model_k.real - data_k.real) / err_k.real,
+                (model_f.real - data_f.real) / err_f.real,
+                (model_f.imag - data_f.imag) / err_f.imag,
+                (model_mz.real - data_mz.real) / err_mz.real,
+            ]
+        )
         reduced_chisq = jnp.mean(normalized_residuals**2)
         return reduced_chisq
 
@@ -227,12 +272,10 @@ class CosmosFit:
 
         def calc_partial_sumstats_from_params(self, params, randkey):
             fit_instance = self.aux_data["fit_instance"]
-            sumstats, sumstats_aux = fit_instance.sumstats_from_params(
-                params, randkey)
+            sumstats, sumstats_aux = fit_instance.sumstats_from_params(params, randkey)
             return sumstats, sumstats_aux
 
-        def calc_loss_from_sumstats(self, sumstats, sumstats_aux,
-                                    randkey=None):
+        def calc_loss_from_sumstats(self, sumstats, sumstats_aux, randkey=None):
             del randkey
             fit_instance = self.aux_data["fit_instance"]
             loss = fit_instance.loss_from_sumstats(sumstats, sumstats_aux)
