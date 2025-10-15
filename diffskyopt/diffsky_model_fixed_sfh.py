@@ -451,8 +451,11 @@ def compute_targets_and_weights(
     thresh_softening=0.1,
     weights=None,
     ran_key=None,
+    fixed_diffstarpop_params=(),
 ):
     # For mag bands = g, r, i, z -> i_band_ind = 2
+
+    u_param_arr = jnp.concatenate((fixed_diffstarpop_params, u_param_arr))
 
     if ran_key is None:
         ran_key = jax.random.key(2)

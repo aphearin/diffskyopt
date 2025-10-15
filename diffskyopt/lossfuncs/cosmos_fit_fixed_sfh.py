@@ -7,6 +7,9 @@ import jax.numpy as jnp
 import numpy as np
 from cosmos20_colors import load_cosmos20
 from diffopt import kdescent, multigrad
+from diffstar.diffstarpop.kernels.params.params_diffstarpopfits_mgash import (
+    DiffstarPop_Params_Diffstarpopfits_mgash as sfh_param_dict,
+)
 from mpi4py import MPI
 
 from .. import diffsky_param_wrapper_fixed_sfh as dpwsfh
@@ -20,12 +23,14 @@ from ..diffsky_model_fixed_sfh import (
     generate_weighted_sobol_lc_data,
 )
 
-u_param_collection = dpw.get_u_param_collection_from_param_collection(
-    *dpw.DEFAULT_PARAM_COLLECTION
+u_param_collection = dpwsfh.get_u_param_collection_from_param_collection(
+    *dpwsfh.DEFAULT_PARAM_COLLECTION
 )
 COSMOS_SKY_AREA = 1.21
 
 SIZE, RANK = MPI.COMM_WORLD.size, MPI.COMM_WORLD.rank
+
+# modelnames = ['smdpl_dr1_nomerging', 'smdpl_dr1', 'tng', 'galacticus_in_situ', 'galacticus_in_plus_ex_situ']
 
 
 def load_target_data_and_cat(
@@ -84,12 +89,13 @@ def load_target_data_and_cat(
 
 
 class CosmosFit:
-    default_u_param_arr = dpw.unroll_u_param_collection_into_flat_array(
+    default_u_param_arr = dpwsfh.unroll_u_param_collection_into_flat_array(
         *u_param_collection
     )
 
     def __init__(
         self,
+        sfh_model="tng",
         num_halos=5000,
         zmin=0.4,
         zmax=2.0,
@@ -107,6 +113,7 @@ class CosmosFit:
         drn_dsps=COSMOS_DIR,
         drn_filters=FILTERS_DIR,
     ):
+        self.fixed_diffstarpop_params = sfh_param_dict[sfh_model]
         self.num_halos = num_halos
         self.zmin = zmin
         self.zmax = zmax
@@ -202,6 +209,7 @@ class CosmosFit:
             ran_key=jax.random.split(randkey, SIZE)[RANK],
             weights=self.halo_upweights,
             i_band_thresh=self.i_thresh,
+            fixed_diffstarpop_params=self.fixed_diffstarpop_params,
         )
 
         return targets, weights

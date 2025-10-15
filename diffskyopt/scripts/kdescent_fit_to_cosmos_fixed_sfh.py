@@ -4,7 +4,7 @@ import jax
 import numpy as np
 from mpi4py import MPI
 
-from ..lossfuncs.cosmos_fit_fixed_sfh import CosmosFit
+from ..lossfuncs.cosmos_fit_fixed_sfh import CosmosFit as CosmosFitFixedSFH
 
 
 def adam_fit(
@@ -35,6 +35,18 @@ def adam_fit(
 
 
 parser = argparse.ArgumentParser(description="Test real fits to COSMOS data")
+parser.add_argument(
+    "sfh_model",
+    type=str,
+    help="SFH model nickname",
+    choices=(
+        "smdpl_dr1_nomerging",
+        "smdpl_dr1",
+        "tng",
+        "galacticus_in_situ",
+        "galacticus_in_plus_ex_situ",
+    ),
+)
 parser.add_argument(
     "-o",
     "--output",
@@ -109,7 +121,8 @@ parser.add_argument(
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    cosmos_fit = CosmosFit(
+    cosmos_fit = CosmosFitFixedSFH(
+        sfh_model=args.sfh_model,
         num_halos=args.num_halos,
         i_thresh=args.iband_max,
         lgmp_min=args.lgmp_min,
